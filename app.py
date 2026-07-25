@@ -14,7 +14,8 @@ st.set_page_config(
 )
 
 # --- SISTEMA DE AUTENTICACIÓN / LOGIN ---
-APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
+# Contraseña fija definida para el equipo:
+APP_PASSWORD = "ComunicacionUPEU2026"
 
 
 def verificar_password():
@@ -29,7 +30,7 @@ def verificar_password():
     )
     password_input = st.text_input("Contraseña de equipo:", type="password")
     if st.button("Ingresar"):
-      if APP_PASSWORD and password_input == APP_PASSWORD:
+      if password_input == APP_PASSWORD:
         st.session_state.autenticado = True
         st.success("Acceso concedido.")
         st.rerun()
