@@ -8,7 +8,7 @@ from streamlit_calendar import calendar
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Planificador de Contenido Instagram",
+    page_title="Planificador de Contenido UPEU",
     layout="wide",
     page_icon="📅",
 )
