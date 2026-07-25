@@ -45,7 +45,7 @@ if not verificar_password():
   st.stop()
 
 # --- SI PASA EL LOGIN, SE EJECUTA LA HERRAMIENTA ---
-st.title("📅 Planificador Estratégico de Contenido Instagram")
+st.title("📅 Planificador de Contenido Instagram")
 st.markdown(
     "Herramienta confidencial para la carga, gestión y visualización del"
     " calendario editorial."
