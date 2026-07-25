@@ -83,26 +83,47 @@ def cargar_datos_desde_github():
       "Requiere_Gacetilla",
       "Link_Gacetilla",
   ]
+
+  df = pd.DataFrame(columns=columnas)
+
   if repo:
     try:
       contents = repo.get_contents(FILE_PATH)
       excel_bytes = contents.decoded_content
-      df = pd.read_excel(
+      df_cargado = pd.read_excel(
           io.BytesIO(excel_bytes), dtype={"Hora": str, "Fecha": str}
       )
+
+      # Migración/Compatibilidad: Mapear columnas viejas si existen
+      if "Gancho" in df_cargado.columns and "Contenido" not in df_cargado.columns:
+        df_cargado["Contenido"] = df_cargado["Gancho"]
+      if "Pilar" in df_cargado.columns and "Tema" not in df_cargado.columns:
+        df_cargado["Tema"] = df_cargado["Pilar"]
+
       for col in columnas:
-        if col not in df.columns:
-          df[col] = ""
-      return df.fillna("")
+        if col not in df_cargado.columns:
+          df_cargado[col] = ""
+
+      return df_cargado[columnas].fillna("")
     except Exception:
-      return pd.DataFrame(columns=columnas)
+      return df
   else:
     try:
-      return pd.read_excel(
+      df_cargado = pd.read_excel(
           FILE_PATH, dtype={"Hora": str, "Fecha": str}
       ).fillna("")
+      if "Gancho" in df_cargado.columns and "Contenido" not in df_cargado.columns:
+        df_cargado["Contenido"] = df_cargado["Gancho"]
+      if "Pilar" in df_cargado.columns and "Tema" not in df_cargado.columns:
+        df_cargado["Tema"] = df_cargado["Pilar"]
+
+      for col in columnas:
+        if col not in df_cargado.columns:
+          df_cargado[col] = ""
+
+      return df_cargado[columnas].fillna("")
     except FileNotFoundError:
-      return pd.DataFrame(columns=columnas)
+      return df
 
 
 def guardar_datos_en_github(
@@ -161,12 +182,9 @@ hora_texto = st.sidebar.text_input(
     "Hora de Publicación (Formato 24hs HH:MM)", value="18:00"
 )
 
-# Tema pasa a ser un campo de texto libre para rellenar
 tema = st.sidebar.text_input("Tema")
 formato = st.sidebar.selectbox("Formato", OPCIONES_FORMATO)
 objetivo = st.sidebar.selectbox("Objetivo", OPCIONES_OBJETIVO)
-
-# Idea / Gancho pasa a llamarse "Contenido"
 contenido_post = st.sidebar.text_input("Contenido")
 
 link_doc_copys = st.sidebar.text_input(
@@ -255,15 +273,16 @@ with tab1:
   if not df_contenido.empty:
     events = []
     for index, row in df_contenido.iterrows():
-      if str(row["Fecha"]).strip():
-        hora_ev = str(row["Hora"]).strip() if row["Hora"] else "12:00"
+      if str(row.get("Fecha", "")).strip():
+        hora_ev = str(row.get("Hora", "")).strip() if row.get("Hora") else "12:00"
         if len(hora_ev) == 5:
           hora_ev += ":00"
 
-        titulo = (
-            f"[{row['Hora']}] [{row['Formato']}]"
-            f" {row['Contenido'] if row['Contenido'] else row['Tema']}"
-        )
+        cont_txt = str(row.get("Contenido", ""))
+        tema_txt = str(row.get("Tema", ""))
+        titulo_base = cont_txt if cont_txt else tema_txt
+
+        titulo = f"[{row.get('Hora', '')}] [{row.get('Formato', '')}] {titulo_base}"
         if row.get("Requiere_Gacetilla") == "Sí":
           titulo = "📰 " + titulo
 
@@ -271,7 +290,7 @@ with tab1:
             "title": titulo,
             "start": f"{row['Fecha']}T{hora_ev}",
             "backgroundColor": (
-                "#FF4B4B" if row["Prioridad"] == "Alta" else "#3D82F6"
+                "#FF4B4B" if row.get("Prioridad") == "Alta" else "#3D82F6"
             ),
         })
     calendar_options = {
@@ -297,7 +316,6 @@ with tab2:
     st.divider()
     col_ed1, col_ed2 = st.columns(2)
 
-    # --- SECCIÓN MODIFICAR REGISTRO ---
     with col_ed1:
       st.subheader("✏️ Modificar Publicación Existente")
       id_editar = st.selectbox(
@@ -319,36 +337,35 @@ with tab2:
       with st.form("form_editar"):
         e_fecha = st.date_input(
             "Fecha",
-            pd.to_datetime(registro_actual["Fecha"]).date()
-            if registro_actual["Fecha"]
+            pd.to_datetime(registro_actual.get("Fecha")).date()
+            if registro_actual.get("Fecha")
             else datetime.now(),
         )
         e_hora = st.text_input(
             "Hora (HH:MM)", value=str(registro_actual.get("Hora", "18:00"))
         )
-
         e_tema = st.text_input(
             "Tema", value=str(registro_actual.get("Tema", ""))
         )
 
         idx_formato = (
             OPCIONES_FORMATO.index(registro_actual["Formato"])
-            if registro_actual["Formato"] in OPCIONES_FORMATO
+            if registro_actual.get("Formato") in OPCIONES_FORMATO
             else 0
         )
         idx_objetivo = (
             OPCIONES_OBJETIVO.index(registro_actual["Objetivo"])
-            if registro_actual["Objetivo"] in OPCIONES_OBJETIVO
+            if registro_actual.get("Objetivo") in OPCIONES_OBJETIVO
             else 0
         )
         idx_estado = (
             OPCIONES_ESTADO.index(registro_actual["Estado"])
-            if registro_actual["Estado"] in OPCIONES_ESTADO
+            if registro_actual.get("Estado") in OPCIONES_ESTADO
             else 0
         )
         idx_prio = (
             OPCIONES_PRIORIDAD.index(registro_actual["Prioridad"])
-            if registro_actual["Prioridad"] in OPCIONES_PRIORIDAD
+            if registro_actual.get("Prioridad") in OPCIONES_PRIORIDAD
             else 0
         )
 
@@ -357,7 +374,7 @@ with tab2:
             "Objetivo", OPCIONES_OBJETIVO, index=idx_objetivo
         )
         e_contenido = st.text_input(
-            "Contenido", value=registro_actual.get("Contenido", "")
+            "Contenido", value=str(registro_actual.get("Contenido", ""))
         )
         e_link_doc_copys = st.text_input(
             "Link Doc Copys Semanal",
@@ -408,7 +425,6 @@ with tab2:
             st.success("Publicación modificada con éxito.")
             st.rerun()
 
-    # --- SECCIÓN ELIMINAR REGISTRO ---
     with col_ed2:
       st.subheader("🗑️ Eliminar Publicación")
       opcion_eliminar = st.selectbox(
@@ -478,7 +494,7 @@ with tab4:
       for index, row in df_semana.iterrows():
         fecha_fmt = (
             pd.to_datetime(row["Fecha"]).strftime("%d/%m")
-            if row["Fecha"]
+            if row.get("Fecha")
             else ""
         )
         hora_fmt = (
@@ -487,11 +503,10 @@ with tab4:
             else ""
         )
 
-        msj += f"*{fecha_fmt}{hora_fmt} - {row['Formato']}*\n"
-        msj += f"• *Tema:* {row['Tema']}\n"
-        msj += f"• *Contenido:* {row['Contenido']}\n"
+        msj += f"*{fecha_fmt}{hora_fmt} - {row.get('Formato', '')}*\n"
+        msj += f"• *Tema:* {row.get('Tema', '')}\n"
+        msj += f"• *Contenido:* {row.get('Contenido', '')}\n"
 
-        # Link directo al contenido visual de esa publicación
         if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
           msj += f"• *Link al Contenido/Arte:* {row['Link_Visual']}\n"
 
@@ -501,12 +516,11 @@ with tab4:
             msj += f" ({row['Link_Gacetilla']})"
           msj += "\n"
 
-        msj += f"• *Estado:* {row['Estado']}\n\n"
+        msj += f"• *Estado:* {row.get('Estado', '')}\n\n"
 
         if not link_doc_encontrado and row.get("Link_Doc_Copys"):
           link_doc_encontrado = row["Link_Doc_Copys"]
 
-      # Link final al documento general de Copys
       if link_doc_encontrado:
         msj += (
             "📄 *Documento general con Copys de la semana:*"
