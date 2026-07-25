@@ -1,10 +1,11 @@
+import json
 import io
 import urllib.parse
 from datetime import datetime, timedelta
 from github import Github
 import pandas as pd
 import streamlit as st
-from streamlit_calendar import calendar
+import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -271,24 +272,17 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
   st.subheader("Calendario de Contenidos")
   events = []
-  fecha_inicial_calendario = datetime.now().strftime("%Y-%m-%d")
   
   if not df_contenido.empty:
     for index, row in df_contenido.iterrows():
       try:
         raw_fecha = str(row.get("Fecha", "")).strip()
         if raw_fecha and raw_fecha != "nan" and len(raw_fecha) >= 8:
-          # Convertir limpia a YYYY-MM-DD
-          f_dt = pd.to_datetime(raw_fecha)
-          fecha_clean = f_dt.strftime("%Y-%m-%d")
-          
-          # Guardamos la fecha de la última publicación para enfocar la vista si es necesario
-          fecha_inicial_calendario = fecha_clean
+          fecha_clean = str(pd.to_datetime(raw_fecha).date())
           
           hora_raw = str(row.get("Hora", "")).strip()
           if not hora_raw or hora_raw == "nan":
             hora_raw = "18:00"
-          
           if len(hora_raw) == 5:
             hora_raw += ":00"
 
@@ -303,27 +297,48 @@ with tab1:
           events.append({
               "title": titulo,
               "start": f"{fecha_clean}T{hora_raw}",
-              "backgroundColor": (
-                  "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
-              ),
-              "borderColor": "#3D82F6",
-              "allDay": False
+              "color": "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
           })
       except Exception:
         continue
 
-  calendar_options = {
-      "initialView": "dayGridMonth",
-      "initialDate": fecha_inicial_calendario,
-      "headerToolbar": {
-          "left": "prev,next today",
-          "center": "title",
-          "right": "dayGridMonth,timeGridWeek",
-      },
-  }
-  
-  # Renderiza el calendario de forma estática y consistente
-  calendar(events=events, options=calendar_options, key="cal_v4_main")
+  # RENDERIZADO DIRECTO EN HTML DE FULLCALENDAR
+  events_json = json.dumps(events)
+  calendar_html = f"""
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
+    <style>
+      body {{ font-family: sans-serif; margin: 0; padding: 10px; background-color: #ffffff; }}
+      #calendar {{ max-width: 100%; margin: 0 auto; }}
+      .fc-event {{ cursor: pointer; padding: 2px; font-size: 0.85em; }}
+    </style>
+  </head>
+  <body>
+    <div id='calendar'></div>
+    <script>
+      document.addEventListener('DOMContentLoaded', function() {{
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {{
+          initialView: 'dayGridMonth',
+          locale: 'es',
+          headerToolbar: {{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek'
+          }},
+          events: {events_json}
+        }});
+        calendar.render();
+      }});
+    </script>
+  </body>
+  </html>
+  """
+  components.html(calendar_html, height=650, scrolling=True)
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
