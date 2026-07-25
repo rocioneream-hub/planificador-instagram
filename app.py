@@ -68,7 +68,6 @@ def obtener_repo():
 
 
 def cargar_datos_desde_github():
-  repo = obtener_repo()
   columnas = [
       "ID",
       "Fecha",
@@ -84,15 +83,15 @@ def cargar_datos_desde_github():
       "Requiere_Gacetilla",
       "Link_Gacetilla",
   ]
-
-  df = pd.DataFrame(columns=columnas)
+  df_vacio = pd.DataFrame(columns=columnas)
+  repo = obtener_repo()
 
   if repo:
     try:
       contents = repo.get_contents(FILE_PATH)
       excel_bytes = contents.decoded_content
       df_cargado = pd.read_excel(
-          io.BytesIO(excel_bytes), dtype={"Hora": str, "Fecha": str}
+          io.BytesIO(excel_bytes), dtype={"Hora": str, "Fecha": str}, engine="openpyxl"
       )
 
       if "Gancho" in df_cargado.columns and "Contenido" not in df_cargado.columns:
@@ -106,11 +105,11 @@ def cargar_datos_desde_github():
 
       return df_cargado[columnas].fillna("")
     except Exception:
-      return df
+      return df_vacio
   else:
     try:
       df_cargado = pd.read_excel(
-          FILE_PATH, dtype={"Hora": str, "Fecha": str}
+          FILE_PATH, dtype={"Hora": str, "Fecha": str}, engine="openpyxl"
       ).fillna("")
       if "Gancho" in df_cargado.columns and "Contenido" not in df_cargado.columns:
         df_cargado["Contenido"] = df_cargado["Gancho"]
@@ -122,8 +121,8 @@ def cargar_datos_desde_github():
           df_cargado[col] = ""
 
       return df_cargado[columnas].fillna("")
-    except FileNotFoundError:
-      return df
+    except Exception:
+      return df_vacio
 
 
 def guardar_datos_en_github(
@@ -136,7 +135,6 @@ def guardar_datos_en_github(
   repo = obtener_repo()
   if repo:
     try:
-      # Intenta actualizar el archivo si existe, sino lo CREA desde cero
       try:
         contents = repo.get_contents(FILE_PATH)
         repo.update_file(
@@ -148,8 +146,11 @@ def guardar_datos_en_github(
     except Exception as e:
       st.error(f"Error al guardar commit en GitHub: {e}")
       return False
-  df.to_excel(FILE_PATH, index=False)
-  return True
+  try:
+    df.to_excel(FILE_PATH, index=False, engine="openpyxl")
+    return True
+  except Exception:
+    return False
 
 
 # Carga inicial de datos
@@ -230,7 +231,7 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
   df_actualizado = pd.concat(
       [df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True
   )
-  with st.spinner("Creando archivo Excel y guardando datos..."):
+  with st.spinner("Guardando de forma segura..."):
     if guardar_datos_en_github(
         df_actualizado, f"Agregado posteo: {contenido_post[:20]}"
     ):
@@ -273,7 +274,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
   st.subheader("Calendario de Contenidos")
   events = []
-  
+
   if not df_contenido.empty:
     for index, row in df_contenido.iterrows():
       try:
@@ -282,7 +283,7 @@ with tab1:
           dt_parsed = pd.to_datetime(raw_fecha, errors="coerce")
           if pd.notnull(dt_parsed):
             fecha_clean = dt_parsed.strftime("%Y-%m-%d")
-            
+
             hora_raw = str(row.get("Hora", "")).strip()
             if not hora_raw or hora_raw.lower() == "nan":
               hora_raw = "18:00"
@@ -291,7 +292,9 @@ with tab1:
 
             cont_txt = str(row.get("Contenido", "")).replace("nan", "").strip()
             tema_txt = str(row.get("Tema", "")).replace("nan", "").strip()
-            titulo_base = cont_txt if cont_txt else (tema_txt if tema_txt else "Sin título")
+            titulo_base = (
+                cont_txt if cont_txt else (tema_txt if tema_txt else "Sin título")
+            )
 
             titulo = f"[{hora_raw[:5]}] [{row.get('Formato', '')}] {titulo_base}"
             if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
@@ -300,7 +303,11 @@ with tab1:
             events.append({
                 "title": titulo,
                 "start": f"{fecha_clean}T{hora_raw}",
-                "color": "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
+                "color": (
+                    "#FF4B4B"
+                    if str(row.get("Prioridad", "")) == "Alta"
+                    else "#3D82F6"
+                ),
             })
       except Exception:
         continue
@@ -308,7 +315,10 @@ with tab1:
   if events:
     st.caption(f"✓ {len(events)} publicación(es) cargada(s) en el calendario.")
   else:
-    st.info("No hay publicaciones visibles todavía. Cargar tu primer contenido desde el menú lateral para inicializar el Excel.")
+    st.info(
+        "No hay publicaciones visibles todavía. Cargar tu primer contenido"
+        " desde el menú lateral."
+    )
 
   events_json = json.dumps(events)
   calendar_html = f"""
@@ -370,15 +380,16 @@ with tab2:
           key="select_edit",
       )
 
-      registro_actual = df_contenido[
-          df_contenido["ID"] == id_editar
-      ].iloc[0].to_dict()
+      registro_actual = (
+          df_contenido[df_contenido["ID"] == id_editar].iloc[0].to_dict()
+      )
 
       with st.form("form_editar"):
         e_fecha = st.date_input(
             "Fecha",
             pd.to_datetime(registro_actual.get("Fecha")).date()
-            if registro_actual.get("Fecha") and str(registro_actual.get("Fecha")).lower() != "nan"
+            if registro_actual.get("Fecha")
+            and str(registro_actual.get("Fecha")).lower() != "nan"
             else datetime.now(),
         )
         e_hora = st.text_input(
@@ -438,7 +449,9 @@ with tab2:
 
         e_estado = st.selectbox("Estado", OPCIONES_ESTADO, index=idx_estado)
         e_prioridad = st.select_slider(
-            "Prioridad", options=OPCIONES_PRIORIDAD, value=OPCIONES_PRIORIDAD[idx_prio]
+            "Prioridad",
+            options=OPCIONES_PRIORIDAD,
+            value=OPCIONES_PRIORIDAD[idx_prio],
         )
 
         btn_guardar_edit = st.form_submit_button("💾 Guardar Cambios")
@@ -446,7 +459,7 @@ with tab2:
         if btn_guardar_edit:
           idx = df_contenido[df_contenido["ID"] == id_editar].index[0]
           e_fecha_str = str(e_fecha)[:10]
-          
+
           df_contenido.at[idx, "Fecha"] = e_fecha_str
           df_contenido.at[idx, "Hora"] = str(e_hora).strip()
           df_contenido.at[idx, "Tema"] = e_tema
