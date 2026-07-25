@@ -208,9 +208,7 @@ estado = st.sidebar.selectbox("Estado", OPCIONES_ESTADO)
 prioridad = st.sidebar.select_slider("Prioridad", options=OPCIONES_PRIORIDAD)
 
 if st.sidebar.button("🚀 Cargar al Calendario"):
-  # Formateo estricto de la fecha cargada a YYYY-MM-DD
-  fecha_str = fecha.strftime("%Y-%m-%d") if hasattr(fecha, "strftime") else str(fecha)[:10]
-  
+  fecha_str = str(fecha)[:10]
   nuevo_id = int(datetime.now().timestamp())
   nuevo_registro = {
       "ID": nuevo_id,
@@ -272,24 +270,25 @@ tab1, tab2, tab3, tab4 = st.tabs([
 
 with tab1:
   st.subheader("Calendario de Contenidos")
+  events = []
+  
   if not df_contenido.empty:
-    events = []
     for index, row in df_contenido.iterrows():
       try:
         raw_fecha = str(row.get("Fecha", "")).strip()
-        if raw_fecha and raw_fecha.lower() != "nan":
-          # Convierte cualquier string o datetime a YYYY-MM-DD estricto
-          fecha_clean = pd.to_datetime(raw_fecha).strftime("%Y-%m-%d")
+        if raw_fecha and raw_fecha != "nan" and len(raw_fecha) >= 10:
+          # Formateo ultra-limpio YYYY-MM-DD
+          fecha_clean = str(pd.to_datetime(raw_fecha).date())
           
-          hora_ev = str(row.get("Hora", "")).strip() if row.get("Hora") else "12:00"
+          hora_ev = str(row.get("Hora", "")).strip() if row.get("Hora") else "18:00"
           if len(hora_ev) == 5:
             hora_ev += ":00"
 
-          cont_txt = str(row.get("Contenido", ""))
-          tema_txt = str(row.get("Tema", ""))
-          titulo_base = cont_txt if cont_txt and cont_txt.lower() != "nan" else tema_txt
+          cont_txt = str(row.get("Contenido", "")).replace("nan", "")
+          tema_txt = str(row.get("Tema", "")).replace("nan", "")
+          titulo_base = cont_txt if cont_txt else tema_txt
 
-          titulo = f"[{row.get('Hora', '18:00')}] [{row.get('Formato', '')}] {titulo_base}"
+          titulo = f"[{hora_ev[:5]}] [{row.get('Formato', '')}] {titulo_base}"
           if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
             titulo = "📰 " + titulo
 
@@ -304,24 +303,17 @@ with tab1:
       except Exception:
         continue
 
-    if events:
-      calendar_options = {
-          "initialView": "dayGridMonth",
-          "headerToolbar": {
-              "left": "prev,next today",
-              "center": "title",
-              "right": "dayGridMonth,timeGridWeek",
-          },
-      }
-      # Key dinámica basada en la cantidad de eventos para obligar a redibujar el widget
-      calendar(events=events, options=calendar_options, key=f"cal_render_{len(events)}")
-    else:
-      st.info("Hay publicaciones guardadas, pero las fechas no tienen formato válido.")
-  else:
-    st.info(
-        "No hay contenidos cargados aún. Usá el formulario de la izquierda para"
-        " agregar."
-    )
+  calendar_options = {
+      "initialView": "dayGridMonth",
+      "headerToolbar": {
+          "left": "prev,next today",
+          "center": "title",
+          "right": "dayGridMonth,timeGridWeek",
+      },
+  }
+  
+  # Se renderiza SIEMPRE para que el calendario esté presente visiblemente
+  calendar(events=events, options=calendar_options, key="calendario_estatico")
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
@@ -420,7 +412,7 @@ with tab2:
 
         if btn_guardar_edit:
           idx = df_contenido[df_contenido["ID"] == id_editar].index[0]
-          e_fecha_str = e_fecha.strftime("%Y-%m-%d") if hasattr(e_fecha, "strftime") else str(e_fecha)[:10]
+          e_fecha_str = str(e_fecha)[:10]
           
           df_contenido.at[idx, "Fecha"] = e_fecha_str
           df_contenido.at[idx, "Hora"] = str(e_hora).strip()
