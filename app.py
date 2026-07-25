@@ -349,11 +349,15 @@ with tab4:
       st.code(msj, language="markdown")
       texto_encoded = urllib.parse.quote(msj)
       ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
+st.markdown("### Vista previa del mensaje:")
+      st.code(msj, language="markdown")
+      texto_encoded = urllib.parse.quote(msj)
+      ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
       st.markdown(
           f'<a href="{ws_url}" target="_blank"><button style="background-color:'
           " #25D366; color: white; padding: 10px 20px; border: none;"
-          " border-radius: 5px; cursor: pointer; font-weight: bold;">📲 Abrir"
-          " y enviar por WhatsApp</button></a>",
+          ' border-radius: 5px; cursor: pointer; font-weight: bold;">Abrir y'
+          " enviar por WhatsApp</button>a>",
           unsafe_allow_html=True,
       )
     else:
