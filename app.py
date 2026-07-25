@@ -248,7 +248,7 @@ reels = (
     else 0
 )
 gacetillas_pendientes = (
-    len(df_contenido[df_contenido["Requiere_Gacetilla"] == "Sí"])
+    len(df_contenido[df_contenido["Requiere_Gacetilla"].isin(["Sí", "Si"])])
     if not df_contenido.empty and "Requiere_Gacetilla" in df_contenido.columns
     else 0
 )
@@ -275,7 +275,7 @@ with tab1:
       raw_fecha = str(row.get("Fecha", "")).strip()
       if raw_fecha:
         try:
-          # Convertir fecha a YYYY-MM-DD estricto
+          # Convertir fecha a formato YYYY-MM-DD estricto para streamlit-calendar
           fecha_dt = pd.to_datetime(raw_fecha).strftime("%Y-%m-%d")
         except Exception:
           fecha_dt = raw_fecha[:10]
@@ -289,7 +289,7 @@ with tab1:
         titulo_base = cont_txt if cont_txt else tema_txt
 
         titulo = f"[{row.get('Hora', '')}] [{row.get('Formato', '')}] {titulo_base}"
-        if row.get("Requiere_Gacetilla") == "Sí":
+        if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
           titulo = "📰 " + titulo
 
         events.append({
@@ -395,7 +395,7 @@ with tab2:
             "¿Requiere Gacetilla?",
             ["No", "Sí"],
             index=0
-            if registro_actual.get("Requiere_Gacetilla") != "Sí"
+            if registro_actual.get("Requiere_Gacetilla") not in ["Sí", "Si"]
             else 1,
         )
         e_link_gacetilla = st.text_input(
@@ -517,7 +517,7 @@ with tab4:
         if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
           msj += f"• *Link al Contenido/Arte:* {row['Link_Visual']}\n"
 
-        if row.get("Requiere_Gacetilla") == "Sí":
+        if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
           msj += "• *Gacetilla de prensa:* Sí"
           if row.get("Link_Gacetilla"):
             msj += f" ({row['Link_Gacetilla']})"
