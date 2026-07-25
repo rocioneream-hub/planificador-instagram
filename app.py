@@ -87,7 +87,9 @@ def cargar_datos_desde_github():
     try:
       contents = repo.get_contents(FILE_PATH)
       excel_bytes = contents.decoded_content
-      df = pd.read_excel(io.BytesIO(excel_bytes), dtype={"Hora": str})
+      df = pd.read_excel(
+          io.BytesIO(excel_bytes), dtype={"Hora": str, "Fecha": str}
+      )
       for col in columnas:
         if col not in df.columns:
           df[col] = ""
@@ -96,7 +98,9 @@ def cargar_datos_desde_github():
       return pd.DataFrame(columns=columnas)
   else:
     try:
-      return pd.read_excel(FILE_PATH, dtype={"Hora": str}).fillna("")
+      return pd.read_excel(
+          FILE_PATH, dtype={"Hora": str, "Fecha": str}
+      ).fillna("")
     except FileNotFoundError:
       return pd.DataFrame(columns=columnas)
 
@@ -129,6 +133,30 @@ def guardar_datos_en_github(
 # Carga inicial de datos
 df_contenido = cargar_datos_desde_github()
 
+# OPCIONES FIJAS DE LISTAS
+OPCIONES_PILAR = [
+    "Gestión e Institucional",
+    "Programas y Convocatorias",
+    "Casos de Éxito / Territorio",
+    "Educativo / Tips",
+    "Comunidad",
+]
+OPCIONES_FORMATO = ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
+OPCIONES_OBJETIVO = [
+    "Alcance / Posicionamiento",
+    "Informativo",
+    "Tráfico / Clics",
+    "Convocatoria / Registro",
+]
+OPCIONES_ESTADO = [
+    "Idea / Borrador",
+    "Para Diseñar / Grabar",
+    "En Revisión",
+    "Programado",
+    "Publicado",
+]
+OPCIONES_PRIORIDAD = ["Baja", "Media", "Alta"]
+
 # --- BARRA LATERAL: FORMULARIO DE CARGA ---
 st.sidebar.header("📝 Cargar Nuevo Contenido")
 if st.sidebar.button("🚪 Cerrar Sesión"):
@@ -136,29 +164,18 @@ if st.sidebar.button("🚪 Cerrar Sesión"):
   st.rerun()
 
 fecha = st.sidebar.date_input("Fecha de Publicación", datetime.now())
-# Formato estricto HH:MM
-hora = st.sidebar.time_input("Hora de Publicación", datetime.now().time())
-hora_str = hora.strftime("%H:%M")
 
-pilar = st.sidebar.selectbox("Eje / Pilar Temático", [
-    "Gestión e Institucional",
-    "Programas y Convocatorias",
-    "Casos de Éxito / Territorio",
-    "Educativo / Tips",
-    "Comunidad",
-])
-formato = st.sidebar.selectbox(
-    "Formato", ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
+# Selección de Hora manual tipo Texto para evitar desfase de Zona Horaria
+hora_texto = st.sidebar.text_input(
+    "Hora de Publicación (Formato 24hs HH:MM)", value="18:00"
 )
-objetivo = st.sidebar.selectbox("Objetivo", [
-    "Alcance / Posicionamiento",
-    "Informativo",
-    "Tráfico / Clics",
-    "Convocatoria / Registro",
-])
+
+pilar = st.sidebar.selectbox("Eje / Pilar Temático", OPCIONES_PILAR)
+formato = st.sidebar.selectbox("Formato", OPCIONES_FORMATO)
+objetivo = st.sidebar.selectbox("Objetivo", OPCIONES_OBJETIVO)
 gancho = st.sidebar.text_input("Idea / Gancho (Hook inicial)")
 copy = st.sidebar.text_area("Copy / Texto del posteo")
-link_visual = st.sidebar.text_input("Link a Recurso Visual (Drive / Canva)")
+link_visual = st.sidebar.text_input("Link a Recurso Visual (Reel / Drive)")
 
 st.sidebar.markdown("---")
 requiere_gacetilla = st.sidebar.radio(
@@ -171,23 +188,15 @@ if requiere_gacetilla == "Sí":
   )
 
 st.sidebar.markdown("---")
-estado = st.sidebar.selectbox("Estado", [
-    "Idea / Borrador",
-    "Para Diseñar / Grabar",
-    "En Revisión",
-    "Programado",
-    "Publicado",
-])
-prioridad = st.sidebar.select_slider(
-    "Prioridad", options=["Baja", "Media", "Alta"]
-)
+estado = st.sidebar.selectbox("Estado", OPCIONES_ESTADO)
+prioridad = st.sidebar.select_slider("Prioridad", options=OPCIONES_PRIORIDAD)
 
 if st.sidebar.button("🚀 Cargar al Calendario"):
   nuevo_id = int(datetime.now().timestamp())
   nuevo_registro = {
       "ID": nuevo_id,
       "Fecha": str(fecha),
-      "Hora": hora_str,
+      "Hora": str(hora_texto).strip(),
       "Pilar": pilar,
       "Formato": formato,
       "Gancho": gancho,
@@ -249,7 +258,7 @@ with tab1:
     for index, row in df_contenido.iterrows():
       if str(row["Fecha"]).strip():
         hora_ev = str(row["Hora"]).strip() if row["Hora"] else "12:00"
-        if len(hora_ev) == 5:  # HH:MM
+        if len(hora_ev) == 5:
           hora_ev += ":00"
 
         titulo = (
@@ -315,71 +324,48 @@ with tab2:
             else datetime.now(),
         )
         e_hora = st.text_input(
-            "Hora (HH:MM)", value=str(registro_actual.get("Hora", "12:00"))
+            "Hora (HH:MM)", value=str(registro_actual.get("Hora", "18:00"))
         )
-        e_pilar = st.selectbox(
-            "Pilar",
-            [
-                "Gestión e Institucional",
-                "Programas y Convocatorias",
-                "Casos de Éxito / Territorio",
-                "Educativo / Tips",
-                "Comunidad",
-            ],
-            index=[
-                "Gestión e Institucional",
-                "Programas y Convocatorias",
-                "Casos de Éxito / Territorio",
-                "Educativo / Tips",
-                "Comunidad",
-            ].index(registro_actual["Pilar"])
-            if registro_actual["Pilar"]
-            in [
-                "Gestión e Institucional",
-                "Programas y Convocatorias",
-                "Casos de Éxito / Territorio",
-                "Educativo / Tips",
-                "Comunidad",
-            ]
-            else 0,
+
+        # Ajustar índices de listas
+        idx_pilar = (
+            OPCIONES_PILAR.index(registro_actual["Pilar"])
+            if registro_actual["Pilar"] in OPCIONES_PILAR
+            else 0
         )
-        e_formato = st.selectbox(
-            "Formato",
-            ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"],
-            index=["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"].index(
-                registro_actual["Formato"]
-            )
-            if registro_actual["Formato"]
-            in ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
-            else 0,
+        idx_formato = (
+            OPCIONES_FORMATO.index(registro_actual["Formato"])
+            if registro_actual["Formato"] in OPCIONES_FORMATO
+            else 0
+        )
+        idx_objetivo = (
+            OPCIONES_OBJETIVO.index(registro_actual["Objetivo"])
+            if registro_actual["Objetivo"] in OPCIONES_OBJETIVO
+            else 0
+        )
+        idx_estado = (
+            OPCIONES_ESTADO.index(registro_actual["Estado"])
+            if registro_actual["Estado"] in OPCIONES_ESTADO
+            else 0
+        )
+        idx_prio = (
+            OPCIONES_PRIORIDAD.index(registro_actual["Prioridad"])
+            if registro_actual["Prioridad"] in OPCIONES_PRIORIDAD
+            else 0
+        )
+
+        e_pilar = st.selectbox("Pilar", OPCIONES_PILAR, index=idx_pilar)
+        e_formato = st.selectbox("Formato", OPCIONES_FORMATO, index=idx_formato)
+        e_objetivo = st.selectbox(
+            "Objetivo", OPCIONES_OBJETIVO, index=idx_objetivo
         )
         e_gancho = st.text_input("Gancho", value=registro_actual["Gancho"])
         e_copy = st.text_area("Copy", value=registro_actual["Copy"])
-        e_estado = st.selectbox(
-            "Estado",
-            [
-                "Idea / Borrador",
-                "Para Diseñar / Grabar",
-                "En Revisión",
-                "Programado",
-                "Publicado",
-            ],
-            index=[
-                "Idea / Borrador",
-                "Para Diseñar / Grabar",
-                "En Revisión",
-                "Programado",
-                "Publicado",
-            ].index(registro_actual["Estado"])
-            if registro_actual["Estado"]
-            in [
-                "Idea / Borrador",
-                "Para Diseñar / Grabar",
-                "En Revisión",
-                "Programado",
-                "Publicado",
-            ]
-            else 0,
+
+        # CAMPOS QUE FALTABAN:
+        e_link_visual = st.text_input(
+            "Link Recurso Visual (Reel / Canva)",
+            value=str(registro_actual.get("Link_Visual", "")),
         )
         e_gacetilla = st.radio(
             "¿Requiere Gacetilla?",
@@ -389,8 +375,13 @@ with tab2:
             else 1,
         )
         e_link_gacetilla = st.text_input(
-            "Link Gacetilla",
+            "Link Borrador Gacetilla (Drive)",
             value=str(registro_actual.get("Link_Gacetilla", "")),
+        )
+
+        e_estado = st.selectbox("Estado", OPCIONES_ESTADO, index=idx_estado)
+        e_prioridad = st.select_slider(
+            "Prioridad", options=OPCIONES_PRIORIDAD, value=OPCIONES_PRIORIDAD[idx_prio]
         )
 
         btn_guardar_edit = st.form_submit_button("💾 Guardar Cambios")
@@ -398,12 +389,15 @@ with tab2:
         if btn_guardar_edit:
           idx = df_contenido[df_contenido["ID"] == id_editar].index[0]
           df_contenido.at[idx, "Fecha"] = str(e_fecha)
-          df_contenido.at[idx, "Hora"] = str(e_hora)
+          df_contenido.at[idx, "Hora"] = str(e_hora).strip()
           df_contenido.at[idx, "Pilar"] = e_pilar
           df_contenido.at[idx, "Formato"] = e_formato
+          df_contenido.at[idx, "Objetivo"] = e_objetivo
           df_contenido.at[idx, "Gancho"] = e_gancho
           df_contenido.at[idx, "Copy"] = e_copy
+          df_contenido.at[idx, "Link_Visual"] = e_link_visual
           df_contenido.at[idx, "Estado"] = e_estado
+          df_contenido.at[idx, "Prioridad"] = e_prioridad
           df_contenido.at[idx, "Requiere_Gacetilla"] = e_gacetilla
           df_contenido.at[idx, "Link_Gacetilla"] = e_link_gacetilla
 
@@ -460,7 +454,6 @@ with tab4:
       "Fecha Fin de Semana", datetime.now() + timedelta(days=6)
   )
 
-  # Campo para el link único con los copys/diseños de la semana
   link_doc_semanal = st.text_input(
       "📎 Link al documento/carpeta de Copys y Materiales de la semana (Drive"
       " / Canva):",
