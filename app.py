@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 from streamlit_calendar import calendar
 from github import Github
 import io
+import urllib.parse
 
 # Configuración de la página
 st.set_page_config(page_title="Planificador de Contenido Instagram", layout="wide", page_icon="📱")
@@ -41,10 +41,8 @@ def cargar_datos_desde_github():
                     df[col] = ""
             return df.fillna("")
         except Exception:
-            # Si el archivo no existe aún en el repo
             return pd.DataFrame(columns=columnas)
     else:
-        # Fallback local si no están configurados los secrets
         try:
             return pd.read_excel(FILE_PATH).fillna("")
         except FileNotFoundError:
@@ -69,7 +67,6 @@ def guardar_datos_en_github(df, mensaje_commit="Actualización de contenidos"):
             st.error(f"Error al guardar commit en GitHub: {e}")
             return False
     else:
-        # Guardado local de respaldo
         df.to_excel(FILE_PATH, index=False)
         return True
 
@@ -137,7 +134,7 @@ col4.metric("Pendientes de Producción", pendientes)
 st.divider()
 
 # --- PESTAÑAS DE VISUALIZACIÓN ---
-tab1, tab2, tab3 = st.tabs(["🗓️ Calendario Visual", "📋 Tabla y Edición", "📊 Análisis y Balance"])
+tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Calendario Visual", "📋 Tabla y Edición", "📊 Análisis y Balance", "💬 Reporte para WhatsApp"])
 
 with tab1:
     st.subheader("Calendario de Contenidos")
@@ -167,10 +164,9 @@ with tab2:
     st.subheader("Listado Detallado de Publicaciones")
     st.dataframe(df_contenido, use_container_width=True)
     
-    # Sección para eliminar un registro si fuera necesario
     if not df_contenido.empty and "ID" in df_contenido.columns:
         st.divider()
-        st.subheader("🗑️ Eliminar o Editar Registro")
+        st.subheader("🗑️ Eliminar Registro")
         opcion_eliminar = st.selectbox("Seleccioná la publicación por ID / Gancho:", 
                                        options=df_contenido["ID"].tolist(),
                                        format_func=lambda x: f"ID: {x} - {df_contenido[df_contenido['ID']==x]['Gancho'].values[0]}")
@@ -191,3 +187,54 @@ with tab3:
         with col_g2:
             st.write("**Formatos Utilizados**")
             st.bar_chart(df_contenido["Formato"].value_counts())
+
+# --- NUEVA PESTAÑA: REPORTE PARA WHATSAPP ---
+with tab4:
+    st.subheader("📱 Generador de Resumen Semanal para Validación")
+    st.markdown("Seleccioná el rango de fechas para armar el mensaje de validación:")
+    
+    col_f1, col_f2 = st.columns(2)
+    fecha_inicio = col_f1.date_input("Fecha Inicio de Semana", datetime.now())
+    fecha_fin = col_f2.date_input("Fecha Fin de Semana", datetime.now() + timedelta(days=6))
+    
+    if not df_contenido.empty:
+        # Convertir columna Fecha a datetime para filtrar
+        df_temp = df_contenido.copy()
+        df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce")
+        
+        # Filtrar por rango
+        mask = (df_temp["Fecha_dt"] >= pd.to_datetime(fecha_inicio)) & (df_temp["Fecha_dt"] <= pd.to_datetime(fecha_fin))
+        df_semana = df_temp.loc[mask].sort_values("Fecha_dt")
+        
+        if not df_semana.empty:
+            # Armar el texto de WhatsApp
+            msj = f"*📌 PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
+            msj += f"*Semana:* {fecha_inicio.strftime('%d/%m')} al {fecha_fin.strftime('%d/%m')}\n\n"
+            msj += "Hola! Te comparto la propuesta de contenidos para esta semana para tu revisión y visto bueno:\n\n"
+            
+            for _, row in df_semana.iterrows():
+                fecha_fmt = pd.to_datetime(row['Fecha']).strftime('%d/%m') if row['Fecha'] else 'Sin fecha'
+                msj += f"🗓️ *{fecha_fmt} - {row['Formato']}*\n"
+                msj += f"• *Eje:* {row['Pilar']}\n"
+                msj += f"• *Gancho/Idea:* {row['Gancho']}\n"
+                if row['Copy']:
+                    copy_resumen = row['Copy'][:100] + "..." if len(row['Copy']) > 100 else row['Copy']
+                    msj += f"• *Texto:* _{copy_resumen}_\n"
+                if row['Link_Visual']:
+                    msj += f"• *Preview visual:* {row['Link_Visual']}\n"
+                msj += f"• *Estado:* {row['Estado']}\n\n"
+            
+            msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
+            
+            st.markdown("### 📄 Vista previa del mensaje:")
+            st.code(msj, language="markdown")
+            
+            # Botón directo para abrir WhatsApp
+            texto_encoded = urllib.parse.quote(msj)
+            ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
+            st.markdown(f'<a href="{ws_url}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:16px;">📲 Abrir y enviar por WhatsApp</button></a>', unsafe_allow_html=True)
+            
+        else:
+            st.warning("No hay publicaciones programadas para el rango de fechas seleccionado.")
+    else:
+        st.info("No hay publicaciones registradas para generar el reporte.")
