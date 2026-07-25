@@ -94,7 +94,6 @@ def cargar_datos_desde_github():
           io.BytesIO(excel_bytes), dtype={"Hora": str, "Fecha": str}
       )
 
-      # Migración/Compatibilidad: Mapear columnas viejas si existen
       if "Gancho" in df_cargado.columns and "Contenido" not in df_cargado.columns:
         df_cargado["Contenido"] = df_cargado["Gancho"]
       if "Pilar" in df_cargado.columns and "Tema" not in df_cargado.columns:
@@ -273,7 +272,14 @@ with tab1:
   if not df_contenido.empty:
     events = []
     for index, row in df_contenido.iterrows():
-      if str(row.get("Fecha", "")).strip():
+      raw_fecha = str(row.get("Fecha", "")).strip()
+      if raw_fecha:
+        try:
+          # Convertir fecha a YYYY-MM-DD estricto
+          fecha_dt = pd.to_datetime(raw_fecha).strftime("%Y-%m-%d")
+        except Exception:
+          fecha_dt = raw_fecha[:10]
+
         hora_ev = str(row.get("Hora", "")).strip() if row.get("Hora") else "12:00"
         if len(hora_ev) == 5:
           hora_ev += ":00"
@@ -288,11 +294,12 @@ with tab1:
 
         events.append({
             "title": titulo,
-            "start": f"{row['Fecha']}T{hora_ev}",
+            "start": f"{fecha_dt}T{hora_ev}",
             "backgroundColor": (
                 "#FF4B4B" if row.get("Prioridad") == "Alta" else "#3D82F6"
             ),
         })
+
     calendar_options = {
         "initialView": "dayGridMonth",
         "headerToolbar": {
