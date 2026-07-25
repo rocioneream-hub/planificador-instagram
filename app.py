@@ -10,8 +10,7 @@ import urllib.parse
 st.set_page_config(page_title="Planificador de Contenido Instagram", layout="wide", page_icon="🔒")
 
 # --- SISTEMA DE AUTENTICACIÓN / LOGIN ---
-APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
-
+APP_PASSWORD = "ComunicacionUPEU2026"
 def verificar_password():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
