@@ -8,13 +8,12 @@ from streamlit_calendar import calendar
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Planificador de Contenido UPEU",
+    page_title="Planificador de Contenido Instagram",
     layout="wide",
     page_icon="📅",
 )
 
 # --- SISTEMA DE AUTENTICACIÓN / LOGIN ---
-# Contraseña fija definida para el equipo:
 APP_PASSWORD = "ComunicacionUPEU2026"
 
 
@@ -45,7 +44,7 @@ if not verificar_password():
   st.stop()
 
 # --- SI PASA EL LOGIN, SE EJECUTA LA HERRAMIENTA ---
-st.title("📅 Planificador de Contenido UPEU")
+st.title("📅 Planificador Estratégico de Contenido Instagram & Prensa")
 st.markdown(
     "Herramienta confidencial para la carga, gestión y visualización del"
     " calendario editorial."
@@ -82,6 +81,8 @@ def cargar_datos_desde_github():
       "Estado",
       "Prioridad",
       "Objetivo",
+      "Requiere_Gacetilla",
+      "Link_Gacetilla",
   ]
   if repo:
     try:
@@ -135,62 +136,78 @@ if st.sidebar.button("🚪 Cerrar Sesión"):
   st.session_state.autenticado = False
   st.rerun()
 
-with st.sidebar.form("form_carga", clear_on_submit=True):
-  fecha = st.date_input("Fecha de Publicación", datetime.now())
-  hora = st.time_input("Hora de Publicación", datetime.now().time())
-  pilar = st.selectbox("Eje / Pilar Temático", [
-      "Gestión e Institucional",
-      "Programas y Convocatorias",
-      "Casos de Éxito / Territorio",
-      "Educativo / Tips",
-      "Comunidad",
-  ])
-  formato = st.selectbox(
-      "Formato", ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
-  )
-  objetivo = st.selectbox("Objetivo", [
-      "Alcance / Posicionamiento",
-      "Informativo",
-      "Tráfico / Clics",
-      "Convocatoria / Registro",
-  ])
-  gancho = st.text_input("Idea / Gancho (Hook inicial)")
-  copy = st.text_area("Copy / Texto del posteo")
-  link_visual = st.text_input("Link a Google Drive / Canva")
-  estado = st.selectbox("Estado", [
-      "Idea / Borrador",
-      "Para Diseñar / Grabar",
-      "En Revisión",
-      "Programado",
-      "Publicado",
-  ])
-  prioridad = st.select_slider("Prioridad", options=["Baja", "Media", "Alta"])
+# Formulario interactivo
+fecha = st.sidebar.date_input("Fecha de Publicación", datetime.now())
+hora = st.sidebar.time_input("Hora de Publicación", datetime.now().time())
+pilar = st.sidebar.selectbox("Eje / Pilar Temático", [
+    "Gestión e Institucional",
+    "Programas y Convocatorias",
+    "Casos de Éxito / Territorio",
+    "Educativo / Tips",
+    "Comunidad",
+])
+formato = st.sidebar.selectbox(
+    "Formato", ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
+)
+objetivo = st.sidebar.selectbox("Objetivo", [
+    "Alcance / Posicionamiento",
+    "Informativo",
+    "Tráfico / Clics",
+    "Convocatoria / Registro",
+])
+gancho = st.sidebar.text_input("Idea / Gancho (Hook inicial)")
+copy = st.sidebar.text_area("Copy / Texto del posteo")
+link_visual = st.sidebar.text_input("Link a Google Drive / Canva")
 
-  submitted = st.form_submit_button("🚀 Cargar al Calendario")
-  if submitted:
-    nuevo_id = int(datetime.now().timestamp())
-    nuevo_registro = {
-        "ID": nuevo_id,
-        "Fecha": str(fecha),
-        "Hora": str(hora),
-        "Pilar": pilar,
-        "Formato": formato,
-        "Gancho": gancho,
-        "Copy": copy,
-        "Link_Visual": link_visual,
-        "Estado": estado,
-        "Prioridad": prioridad,
-        "Objetivo": objetivo,
-    }
-    df_actualizado = pd.concat(
-        [df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True
-    )
-    with st.spinner("Guardando de forma segura..."):
-      if guardar_datos_en_github(
-          df_actualizado, f"Agregado posteo: {gancho[:20]}"
-      ):
-        st.sidebar.success("¡Contenido guardado con éxito!")
-        st.rerun()
+# --- NUEVOS CAMPOS: GACETILLA DE PRENSA ---
+st.sidebar.markdown("---")
+requiere_gacetilla = st.sidebar.radio(
+    "¿Requiere Gacetilla de Prensa?", ["No", "Sí"]
+)
+link_gacetilla = ""
+if requiere_gacetilla == "Sí":
+  link_gacetilla = st.sidebar.text_input(
+      "Link al borrador de Gacetilla (Drive):"
+  )
+
+st.sidebar.markdown("---")
+estado = st.sidebar.selectbox("Estado", [
+    "Idea / Borrador",
+    "Para Diseñar / Grabar",
+    "En Revisión",
+    "Programado",
+    "Publicado",
+])
+prioridad = st.sidebar.select_slider(
+    "Prioridad", options=["Baja", "Media", "Alta"]
+)
+
+if st.sidebar.button("🚀 Cargar al Calendario"):
+  nuevo_id = int(datetime.now().timestamp())
+  nuevo_registro = {
+      "ID": nuevo_id,
+      "Fecha": str(fecha),
+      "Hora": str(hora),
+      "Pilar": pilar,
+      "Formato": formato,
+      "Gancho": gancho,
+      "Copy": copy,
+      "Link_Visual": link_visual,
+      "Estado": estado,
+      "Prioridad": prioridad,
+      "Objetivo": objetivo,
+      "Requiere_Gacetilla": requiere_gacetilla,
+      "Link_Gacetilla": link_gacetilla,
+  }
+  df_actualizado = pd.concat(
+      [df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True
+  )
+  with st.spinner("Guardando de forma segura..."):
+    if guardar_datos_en_github(
+        df_actualizado, f"Agregado posteo: {gancho[:20]}"
+    ):
+      st.sidebar.success("¡Contenido guardado con éxito!")
+      st.rerun()
 
 # --- PANEL CENTRAL: MÉTRICAS Y RESUMEN ---
 col1, col2, col3, col4 = st.columns(4)
@@ -205,22 +222,16 @@ reels = (
     if not df_contenido.empty
     else 0
 )
-pendientes = (
-    len(
-        df_contenido[
-            df_contenido["Estado"].isin(
-                ["Idea / Borrador", "Para Diseñar / Grabar", "En Revisión"]
-            )
-        ]
-    )
-    if not df_contenido.empty
+gacetillas_pendientes = (
+    len(df_contenido[df_contenido["Requiere_Gacetilla"] == "Sí"])
+    if not df_contenido.empty and "Requiere_Gacetilla" in df_contenido.columns
     else 0
 )
 
 col1.metric("Total Publicaciones", total_posts)
 col2.metric("Programados", programados)
 col3.metric("Reels Planificados", reels)
-col4.metric("Pendientes de Producción", pendientes)
+col4.metric("Con Gacetilla de Prensa", gacetillas_pendientes)
 st.divider()
 
 # --- PESTAÑAS DE VISUALIZACIÓN ---
@@ -237,10 +248,13 @@ with tab1:
     events = []
     for index, row in df_contenido.iterrows():
       if str(row["Fecha"]).strip():
+        titulo = (
+            f"[{row['Formato']}] {row['Gancho'] if row['Gancho'] else row['Pilar']}"
+        )
+        if row.get("Requiere_Gacetilla") == "Sí":
+          titulo = "📰 " + titulo
         events.append({
-            "title": (
-                f"[{row['Formato']}] {row['Gancho'] if row['Gancho'] else row['Pilar']}"
-            ),
+            "title": titulo,
             "start": f"{row['Fecha']}T{row['Hora'] if row['Hora'] else '12:00:00'}",
             "backgroundColor": (
                 "#FF4B4B" if row["Prioridad"] == "Alta" else "#3D82F6"
@@ -345,6 +359,11 @@ with tab4:
           msj += f"• *Texto:* _{copy_resumen}_\n"
         if row["Link_Visual"]:
           msj += f"• *Preview visual:* {row['Link_Visual']}\n"
+        if row.get("Requiere_Gacetilla") == "Sí":
+          msj += "• *Gacetilla de prensa:* Sí"
+          if row.get("Link_Gacetilla"):
+            msj += f" ({row['Link_Gacetilla']})"
+          msj += "\n"
         msj += f"• *Estado:* {row['Estado']}\n\n"
 
       msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
