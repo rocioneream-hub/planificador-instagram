@@ -39,6 +39,7 @@ def verificar_password():
   return True
 
 
+# Detener ejecución si no está autenticado
 if not verificar_password():
   st.stop()
 
@@ -190,7 +191,7 @@ with st.sidebar.form("form_carga", clear_on_submit=True):
         st.sidebar.success("¡Contenido guardado con éxito!")
         st.rerun()
 
-# --- PANEL CENTRAL: MÉTRICAS ---
+# --- PANEL CENTRAL: MÉTRICAS Y RESUMEN ---
 col1, col2, col3, col4 = st.columns(4)
 total_posts = len(df_contenido)
 programados = (
@@ -315,7 +316,7 @@ with tab4:
     df_semana = df_temp.loc[mask].sort_values("Fecha_dt")
 
     if not df_semana.empty:
-      msj = "*📅 PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
+      msj = "*PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
       msj += (
           f"*Semana:* {fecha_inicio.strftime('%d/%m')} al"
           f" {fecha_fin.strftime('%d/%m')}\n\n"
@@ -324,13 +325,14 @@ with tab4:
           "Hola! Te comparto la propuesta de contenidos para esta semana para"
           " tu revisión y visto bueno:\n\n"
       )
+
       for index, row in df_semana.iterrows():
         fecha_fmt = (
             pd.to_datetime(row["Fecha"]).strftime("%d/%m")
             if row["Fecha"]
             else ""
         )
-        msj += f"📌 *{fecha_fmt} - {row['Formato']}*\n"
+        msj += f"*{fecha_fmt} - {row['Formato']}*\n"
         msj += f"• *Eje:* {row['Pilar']}\n"
         msj += f"• *Gancho/Idea:* {row['Gancho']}\n"
         if row["Copy"]:
@@ -343,13 +345,10 @@ with tab4:
         if row["Link_Visual"]:
           msj += f"• *Preview visual:* {row['Link_Visual']}\n"
         msj += f"• *Estado:* {row['Estado']}\n\n"
+
       msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
 
       st.markdown("### Vista previa del mensaje:")
-      st.code(msj, language="markdown")
-      texto_encoded = urllib.parse.quote(msj)
-      ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
-st.markdown("### Vista previa del mensaje:")
       st.code(msj, language="markdown")
       texto_encoded = urllib.parse.quote(msj)
       ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
@@ -357,7 +356,7 @@ st.markdown("### Vista previa del mensaje:")
           f'<a href="{ws_url}" target="_blank"><button style="background-color:'
           " #25D366; color: white; padding: 10px 20px; border: none;"
           ' border-radius: 5px; cursor: pointer; font-weight: bold;">Abrir y'
-          " enviar por WhatsApp</button>a>",
+          " enviar por WhatsApp</button></a>",
           unsafe_allow_html=True,
       )
     else:
