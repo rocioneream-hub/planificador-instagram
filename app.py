@@ -72,10 +72,10 @@ def cargar_datos_desde_github():
       "ID",
       "Fecha",
       "Hora",
-      "Pilar",
+      "Tema",
       "Formato",
-      "Gancho",
-      "Copy",
+      "Contenido",
+      "Link_Doc_Copys",
       "Link_Visual",
       "Estado",
       "Prioridad",
@@ -134,13 +134,6 @@ def guardar_datos_en_github(
 df_contenido = cargar_datos_desde_github()
 
 # OPCIONES FIJAS DE LISTAS
-OPCIONES_PILAR = [
-    "Gestión e Institucional",
-    "Programas y Convocatorias",
-    "Casos de Éxito / Territorio",
-    "Educativo / Tips",
-    "Comunidad",
-]
 OPCIONES_FORMATO = ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
 OPCIONES_OBJETIVO = [
     "Alcance / Posicionamiento",
@@ -164,18 +157,24 @@ if st.sidebar.button("🚪 Cerrar Sesión"):
   st.rerun()
 
 fecha = st.sidebar.date_input("Fecha de Publicación", datetime.now())
-
-# Selección de Hora manual tipo Texto para evitar desfase de Zona Horaria
 hora_texto = st.sidebar.text_input(
     "Hora de Publicación (Formato 24hs HH:MM)", value="18:00"
 )
 
-pilar = st.sidebar.selectbox("Eje / Pilar Temático", OPCIONES_PILAR)
+# Tema pasa a ser un campo de texto libre para rellenar
+tema = st.sidebar.text_input("Tema")
 formato = st.sidebar.selectbox("Formato", OPCIONES_FORMATO)
 objetivo = st.sidebar.selectbox("Objetivo", OPCIONES_OBJETIVO)
-gancho = st.sidebar.text_input("Idea / Gancho (Hook inicial)")
-copy = st.sidebar.text_area("Copy / Texto del posteo")
-link_visual = st.sidebar.text_input("Link a Recurso Visual (Reel / Drive)")
+
+# Idea / Gancho pasa a llamarse "Contenido"
+contenido_post = st.sidebar.text_input("Contenido")
+
+link_doc_copys = st.sidebar.text_input(
+    "Link al Documento de Copys Semanal (Google Doc / Drive)"
+)
+link_visual = st.sidebar.text_input(
+    "Link al Recurso Visual / Contenido (Reel / Canva / Drive)"
+)
 
 st.sidebar.markdown("---")
 requiere_gacetilla = st.sidebar.radio(
@@ -197,10 +196,10 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
       "ID": nuevo_id,
       "Fecha": str(fecha),
       "Hora": str(hora_texto).strip(),
-      "Pilar": pilar,
+      "Tema": tema,
       "Formato": formato,
-      "Gancho": gancho,
-      "Copy": copy,
+      "Contenido": contenido_post,
+      "Link_Doc_Copys": link_doc_copys,
       "Link_Visual": link_visual,
       "Estado": estado,
       "Prioridad": prioridad,
@@ -213,7 +212,7 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
   )
   with st.spinner("Guardando de forma segura..."):
     if guardar_datos_en_github(
-        df_actualizado, f"Agregado posteo: {gancho[:20]}"
+        df_actualizado, f"Agregado posteo: {contenido_post[:20]}"
     ):
       st.sidebar.success("¡Contenido guardado con éxito!")
       st.rerun()
@@ -262,7 +261,8 @@ with tab1:
           hora_ev += ":00"
 
         titulo = (
-            f"[{row['Hora']}] [{row['Formato']}] {row['Gancho'] if row['Gancho'] else row['Pilar']}"
+            f"[{row['Hora']}] [{row['Formato']}]"
+            f" {row['Contenido'] if row['Contenido'] else row['Tema']}"
         )
         if row.get("Requiere_Gacetilla") == "Sí":
           titulo = "📰 " + titulo
@@ -306,7 +306,7 @@ with tab2:
           format_func=(
               lambda x: (
                   f"ID: {x} -"
-                  f" {df_contenido[df_contenido['ID'] == x]['Gancho'].values[0]}"
+                  f" {df_contenido[df_contenido['ID'] == x]['Contenido'].values[0]}"
               )
           ),
           key="select_edit",
@@ -327,12 +327,10 @@ with tab2:
             "Hora (HH:MM)", value=str(registro_actual.get("Hora", "18:00"))
         )
 
-        # Ajustar índices de listas
-        idx_pilar = (
-            OPCIONES_PILAR.index(registro_actual["Pilar"])
-            if registro_actual["Pilar"] in OPCIONES_PILAR
-            else 0
+        e_tema = st.text_input(
+            "Tema", value=str(registro_actual.get("Tema", ""))
         )
+
         idx_formato = (
             OPCIONES_FORMATO.index(registro_actual["Formato"])
             if registro_actual["Formato"] in OPCIONES_FORMATO
@@ -354,17 +352,19 @@ with tab2:
             else 0
         )
 
-        e_pilar = st.selectbox("Pilar", OPCIONES_PILAR, index=idx_pilar)
         e_formato = st.selectbox("Formato", OPCIONES_FORMATO, index=idx_formato)
         e_objetivo = st.selectbox(
             "Objetivo", OPCIONES_OBJETIVO, index=idx_objetivo
         )
-        e_gancho = st.text_input("Gancho", value=registro_actual["Gancho"])
-        e_copy = st.text_area("Copy", value=registro_actual["Copy"])
-
-        # CAMPOS QUE FALTABAN:
+        e_contenido = st.text_input(
+            "Contenido", value=registro_actual.get("Contenido", "")
+        )
+        e_link_doc_copys = st.text_input(
+            "Link Doc Copys Semanal",
+            value=str(registro_actual.get("Link_Doc_Copys", "")),
+        )
         e_link_visual = st.text_input(
-            "Link Recurso Visual (Reel / Canva)",
+            "Link Recurso Visual / Contenido",
             value=str(registro_actual.get("Link_Visual", "")),
         )
         e_gacetilla = st.radio(
@@ -390,11 +390,11 @@ with tab2:
           idx = df_contenido[df_contenido["ID"] == id_editar].index[0]
           df_contenido.at[idx, "Fecha"] = str(e_fecha)
           df_contenido.at[idx, "Hora"] = str(e_hora).strip()
-          df_contenido.at[idx, "Pilar"] = e_pilar
+          df_contenido.at[idx, "Tema"] = e_tema
           df_contenido.at[idx, "Formato"] = e_formato
           df_contenido.at[idx, "Objetivo"] = e_objetivo
-          df_contenido.at[idx, "Gancho"] = e_gancho
-          df_contenido.at[idx, "Copy"] = e_copy
+          df_contenido.at[idx, "Contenido"] = e_contenido
+          df_contenido.at[idx, "Link_Doc_Copys"] = e_link_doc_copys
           df_contenido.at[idx, "Link_Visual"] = e_link_visual
           df_contenido.at[idx, "Estado"] = e_estado
           df_contenido.at[idx, "Prioridad"] = e_prioridad
@@ -417,7 +417,7 @@ with tab2:
           format_func=(
               lambda x: (
                   f"ID: {x} -"
-                  f" {df_contenido[df_contenido['ID'] == x]['Gancho'].values[0]}"
+                  f" {df_contenido[df_contenido['ID'] == x]['Contenido'].values[0]}"
               )
           ),
           key="select_del",
@@ -433,11 +433,11 @@ with tab2:
 
 with tab3:
   st.subheader("Distribución de Contenido")
-  if not df_contenido.empty:
+  if not df_contenido.empty and "Tema" in df_contenido.columns:
     col_g1, col_g2 = st.columns(2)
     with col_g1:
-      st.write("**Porcentaje por Pilar Temático**")
-      st.bar_chart(df_contenido["Pilar"].value_counts())
+      st.write("**Publicaciones por Tema**")
+      st.bar_chart(df_contenido["Tema"].value_counts())
     with col_g2:
       st.write("**Formatos Utilizados**")
       st.bar_chart(df_contenido["Formato"].value_counts())
@@ -445,19 +445,13 @@ with tab3:
 with tab4:
   st.subheader("📱 Generador de Resumen Semanal para Validación")
   st.markdown(
-      "Seleccioná el rango de fechas y sumá el link general de los materiales:"
+      "Seleccioná el rango de fechas para armar el mensaje de validación:"
   )
 
   col_f1, col_f2 = st.columns(2)
   fecha_inicio = col_f1.date_input("Fecha Inicio de Semana", datetime.now())
   fecha_fin = col_f2.date_input(
       "Fecha Fin de Semana", datetime.now() + timedelta(days=6)
-  )
-
-  link_doc_semanal = st.text_input(
-      "📎 Link al documento/carpeta de Copys y Materiales de la semana (Drive"
-      " / Canva):",
-      placeholder="https://drive.google.com/drive/folders/...",
   )
 
   if not df_contenido.empty:
@@ -479,6 +473,8 @@ with tab4:
           " tu revisión y visto bueno:\n\n"
       )
 
+      link_doc_encontrado = ""
+
       for index, row in df_semana.iterrows():
         fecha_fmt = (
             pd.to_datetime(row["Fecha"]).strftime("%d/%m")
@@ -492,8 +488,12 @@ with tab4:
         )
 
         msj += f"*{fecha_fmt}{hora_fmt} - {row['Formato']}*\n"
-        msj += f"• *Eje:* {row['Pilar']}\n"
-        msj += f"• *Gancho/Idea:* {row['Gancho']}\n"
+        msj += f"• *Tema:* {row['Tema']}\n"
+        msj += f"• *Contenido:* {row['Contenido']}\n"
+
+        # Link directo al contenido visual de esa publicación
+        if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
+          msj += f"• *Link al Contenido/Arte:* {row['Link_Visual']}\n"
 
         if row.get("Requiere_Gacetilla") == "Sí":
           msj += "• *Gacetilla de prensa:* Sí"
@@ -503,9 +503,14 @@ with tab4:
 
         msj += f"• *Estado:* {row['Estado']}\n\n"
 
-      if link_doc_semanal:
+        if not link_doc_encontrado and row.get("Link_Doc_Copys"):
+          link_doc_encontrado = row["Link_Doc_Copys"]
+
+      # Link final al documento general de Copys
+      if link_doc_encontrado:
         msj += (
-            f"📄 *Link a Copys y Materiales de la semana:* {link_doc_semanal}\n\n"
+            "📄 *Documento general con Copys de la semana:*"
+            f" {link_doc_encontrado}\n\n"
         )
 
       msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
