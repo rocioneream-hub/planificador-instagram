@@ -39,7 +39,6 @@ def verificar_password():
   return True
 
 
-# Detener ejecución si no está autenticado
 if not verificar_password():
   st.stop()
 
@@ -88,7 +87,7 @@ def cargar_datos_desde_github():
     try:
       contents = repo.get_contents(FILE_PATH)
       excel_bytes = contents.decoded_content
-      df = pd.read_excel(io.BytesIO(excel_bytes))
+      df = pd.read_excel(io.BytesIO(excel_bytes), dtype={"Hora": str})
       for col in columnas:
         if col not in df.columns:
           df[col] = ""
@@ -97,7 +96,7 @@ def cargar_datos_desde_github():
       return pd.DataFrame(columns=columnas)
   else:
     try:
-      return pd.read_excel(FILE_PATH).fillna("")
+      return pd.read_excel(FILE_PATH, dtype={"Hora": str}).fillna("")
     except FileNotFoundError:
       return pd.DataFrame(columns=columnas)
 
@@ -130,15 +129,17 @@ def guardar_datos_en_github(
 # Carga inicial de datos
 df_contenido = cargar_datos_desde_github()
 
-# --- BARRA LATERAL: FORMULARIO DE CARGA Y LOGOUT ---
+# --- BARRA LATERAL: FORMULARIO DE CARGA ---
 st.sidebar.header("📝 Cargar Nuevo Contenido")
 if st.sidebar.button("🚪 Cerrar Sesión"):
   st.session_state.autenticado = False
   st.rerun()
 
-# Formulario interactivo
 fecha = st.sidebar.date_input("Fecha de Publicación", datetime.now())
+# Formato estricto HH:MM
 hora = st.sidebar.time_input("Hora de Publicación", datetime.now().time())
+hora_str = hora.strftime("%H:%M")
+
 pilar = st.sidebar.selectbox("Eje / Pilar Temático", [
     "Gestión e Institucional",
     "Programas y Convocatorias",
@@ -157,9 +158,8 @@ objetivo = st.sidebar.selectbox("Objetivo", [
 ])
 gancho = st.sidebar.text_input("Idea / Gancho (Hook inicial)")
 copy = st.sidebar.text_area("Copy / Texto del posteo")
-link_visual = st.sidebar.text_input("Link a Google Drive / Canva")
+link_visual = st.sidebar.text_input("Link a Recurso Visual (Drive / Canva)")
 
-# --- NUEVOS CAMPOS: GACETILLA DE PRENSA ---
 st.sidebar.markdown("---")
 requiere_gacetilla = st.sidebar.radio(
     "¿Requiere Gacetilla de Prensa?", ["No", "Sí"]
@@ -187,7 +187,7 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
   nuevo_registro = {
       "ID": nuevo_id,
       "Fecha": str(fecha),
-      "Hora": str(hora),
+      "Hora": hora_str,
       "Pilar": pilar,
       "Formato": formato,
       "Gancho": gancho,
@@ -237,7 +237,7 @@ st.divider()
 # --- PESTAÑAS DE VISUALIZACIÓN ---
 tab1, tab2, tab3, tab4 = st.tabs([
     "📅 Calendario Visual",
-    "📋 Tabla y Edición",
+    "📋 Tabla, Edición y Bajas",
     "📊 Análisis",
     "📱 Reporte para WhatsApp",
 ])
@@ -248,14 +248,19 @@ with tab1:
     events = []
     for index, row in df_contenido.iterrows():
       if str(row["Fecha"]).strip():
+        hora_ev = str(row["Hora"]).strip() if row["Hora"] else "12:00"
+        if len(hora_ev) == 5:  # HH:MM
+          hora_ev += ":00"
+
         titulo = (
-            f"[{row['Formato']}] {row['Gancho'] if row['Gancho'] else row['Pilar']}"
+            f"[{row['Hora']}] [{row['Formato']}] {row['Gancho'] if row['Gancho'] else row['Pilar']}"
         )
         if row.get("Requiere_Gacetilla") == "Sí":
           titulo = "📰 " + titulo
+
         events.append({
             "title": titulo,
-            "start": f"{row['Fecha']}T{row['Hora'] if row['Hora'] else '12:00:00'}",
+            "start": f"{row['Fecha']}T{hora_ev}",
             "backgroundColor": (
                 "#FF4B4B" if row["Prioridad"] == "Alta" else "#3D82F6"
             ),
@@ -278,27 +283,159 @@ with tab1:
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
   st.dataframe(df_contenido, use_container_width=True)
+
   if not df_contenido.empty and "ID" in df_contenido.columns:
     st.divider()
-    st.subheader("🗑️ Eliminar Registro")
-    opcion_eliminar = st.selectbox(
-        "Seleccioná la publicación por ID / Gancho:",
-        options=df_contenido["ID"].tolist(),
-        format_func=(
-            lambda x: (
-                f"ID: {x} -"
-                f" {df_contenido[df_contenido['ID'] == x]['Gancho'].values[0]}"
-            )
-        ),
-    )
-    if st.button("Eliminar Publicación"):
-      df_filtrado = df_contenido[df_contenido["ID"] != opcion_eliminar]
-      with st.spinner("Actualizando repositorio..."):
-        guardar_datos_en_github(
-            df_filtrado, f"Eliminado posteo ID: {opcion_eliminar}"
+    col_ed1, col_ed2 = st.columns(2)
+
+    # --- SECCIÓN MODIFICAR REGISTRO ---
+    with col_ed1:
+      st.subheader("✏️ Modificar Publicación Existente")
+      id_editar = st.selectbox(
+          "Seleccioná para Editar:",
+          options=df_contenido["ID"].tolist(),
+          format_func=(
+              lambda x: (
+                  f"ID: {x} -"
+                  f" {df_contenido[df_contenido['ID'] == x]['Gancho'].values[0]}"
+              )
+          ),
+          key="select_edit",
+      )
+
+      registro_actual = df_contenido[
+          df_contenido["ID"] == id_editar
+      ].iloc[0].to_dict()
+
+      with st.form("form_editar"):
+        e_fecha = st.date_input(
+            "Fecha",
+            pd.to_datetime(registro_actual["Fecha"]).date()
+            if registro_actual["Fecha"]
+            else datetime.now(),
         )
-        st.success("Registro eliminado correctamente.")
-        st.rerun()
+        e_hora = st.text_input(
+            "Hora (HH:MM)", value=str(registro_actual.get("Hora", "12:00"))
+        )
+        e_pilar = st.selectbox(
+            "Pilar",
+            [
+                "Gestión e Institucional",
+                "Programas y Convocatorias",
+                "Casos de Éxito / Territorio",
+                "Educativo / Tips",
+                "Comunidad",
+            ],
+            index=[
+                "Gestión e Institucional",
+                "Programas y Convocatorias",
+                "Casos de Éxito / Territorio",
+                "Educativo / Tips",
+                "Comunidad",
+            ].index(registro_actual["Pilar"])
+            if registro_actual["Pilar"]
+            in [
+                "Gestión e Institucional",
+                "Programas y Convocatorias",
+                "Casos de Éxito / Territorio",
+                "Educativo / Tips",
+                "Comunidad",
+            ]
+            else 0,
+        )
+        e_formato = st.selectbox(
+            "Formato",
+            ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"],
+            index=["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"].index(
+                registro_actual["Formato"]
+            )
+            if registro_actual["Formato"]
+            in ["Reel", "Carrusel", "Imagen Fija", "Historia", "Live"]
+            else 0,
+        )
+        e_gancho = st.text_input("Gancho", value=registro_actual["Gancho"])
+        e_copy = st.text_area("Copy", value=registro_actual["Copy"])
+        e_estado = st.selectbox(
+            "Estado",
+            [
+                "Idea / Borrador",
+                "Para Diseñar / Grabar",
+                "En Revisión",
+                "Programado",
+                "Publicado",
+            ],
+            index=[
+                "Idea / Borrador",
+                "Para Diseñar / Grabar",
+                "En Revisión",
+                "Programado",
+                "Publicado",
+            ].index(registro_actual["Estado"])
+            if registro_actual["Estado"]
+            in [
+                "Idea / Borrador",
+                "Para Diseñar / Grabar",
+                "En Revisión",
+                "Programado",
+                "Publicado",
+            ]
+            else 0,
+        )
+        e_gacetilla = st.radio(
+            "¿Requiere Gacetilla?",
+            ["No", "Sí"],
+            index=0
+            if registro_actual.get("Requiere_Gacetilla") != "Sí"
+            else 1,
+        )
+        e_link_gacetilla = st.text_input(
+            "Link Gacetilla",
+            value=str(registro_actual.get("Link_Gacetilla", "")),
+        )
+
+        btn_guardar_edit = st.form_submit_button("💾 Guardar Cambios")
+
+        if btn_guardar_edit:
+          idx = df_contenido[df_contenido["ID"] == id_editar].index[0]
+          df_contenido.at[idx, "Fecha"] = str(e_fecha)
+          df_contenido.at[idx, "Hora"] = str(e_hora)
+          df_contenido.at[idx, "Pilar"] = e_pilar
+          df_contenido.at[idx, "Formato"] = e_formato
+          df_contenido.at[idx, "Gancho"] = e_gancho
+          df_contenido.at[idx, "Copy"] = e_copy
+          df_contenido.at[idx, "Estado"] = e_estado
+          df_contenido.at[idx, "Requiere_Gacetilla"] = e_gacetilla
+          df_contenido.at[idx, "Link_Gacetilla"] = e_link_gacetilla
+
+          with st.spinner("Actualizando en GitHub..."):
+            guardar_datos_en_github(
+                df_contenido, f"Modificado posteo ID: {id_editar}"
+            )
+            st.success("Publicación modificada con éxito.")
+            st.rerun()
+
+    # --- SECCIÓN ELIMINAR REGISTRO ---
+    with col_ed2:
+      st.subheader("🗑️ Eliminar Publicación")
+      opcion_eliminar = st.selectbox(
+          "Seleccioná para Eliminar:",
+          options=df_contenido["ID"].tolist(),
+          format_func=(
+              lambda x: (
+                  f"ID: {x} -"
+                  f" {df_contenido[df_contenido['ID'] == x]['Gancho'].values[0]}"
+              )
+          ),
+          key="select_del",
+      )
+      if st.button("Eliminar Definitivamente"):
+        df_filtrado = df_contenido[df_contenido["ID"] != opcion_eliminar]
+        with st.spinner("Actualizando repositorio..."):
+          guardar_datos_en_github(
+              df_filtrado, f"Eliminado posteo ID: {opcion_eliminar}"
+          )
+          st.success("Registro eliminado correctamente.")
+          st.rerun()
 
 with tab3:
   st.subheader("Distribución de Contenido")
@@ -314,12 +451,20 @@ with tab3:
 with tab4:
   st.subheader("📱 Generador de Resumen Semanal para Validación")
   st.markdown(
-      "Seleccioná el rango de fechas para armar el mensaje de validación:"
+      "Seleccioná el rango de fechas y sumá el link general de los materiales:"
   )
+
   col_f1, col_f2 = st.columns(2)
   fecha_inicio = col_f1.date_input("Fecha Inicio de Semana", datetime.now())
   fecha_fin = col_f2.date_input(
       "Fecha Fin de Semana", datetime.now() + timedelta(days=6)
+  )
+
+  # Campo para el link único con los copys/diseños de la semana
+  link_doc_semanal = st.text_input(
+      "📎 Link al documento/carpeta de Copys y Materiales de la semana (Drive"
+      " / Canva):",
+      placeholder="https://drive.google.com/drive/folders/...",
   )
 
   if not df_contenido.empty:
@@ -347,24 +492,28 @@ with tab4:
             if row["Fecha"]
             else ""
         )
-        msj += f"*{fecha_fmt} - {row['Formato']}*\n"
+        hora_fmt = (
+            f" - {row['Hora']} hs"
+            if row.get("Hora") and str(row["Hora"]).strip()
+            else ""
+        )
+
+        msj += f"*{fecha_fmt}{hora_fmt} - {row['Formato']}*\n"
         msj += f"• *Eje:* {row['Pilar']}\n"
         msj += f"• *Gancho/Idea:* {row['Gancho']}\n"
-        if row["Copy"]:
-          copy_resumen = (
-              row["Copy"][:100] + "..."
-              if len(row["Copy"]) > 100
-              else row["Copy"]
-          )
-          msj += f"• *Texto:* _{copy_resumen}_\n"
-        if row["Link_Visual"]:
-          msj += f"• *Preview visual:* {row['Link_Visual']}\n"
+
         if row.get("Requiere_Gacetilla") == "Sí":
           msj += "• *Gacetilla de prensa:* Sí"
           if row.get("Link_Gacetilla"):
             msj += f" ({row['Link_Gacetilla']})"
           msj += "\n"
+
         msj += f"• *Estado:* {row['Estado']}\n\n"
+
+      if link_doc_semanal:
+        msj += (
+            f"📄 *Link a Copys y Materiales de la semana:* {link_doc_semanal}\n\n"
+        )
 
       msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
 
