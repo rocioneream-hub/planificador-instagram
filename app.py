@@ -271,40 +271,50 @@ tab1, tab2, tab3, tab4 = st.tabs([
 with tab1:
   st.subheader("Calendario de Contenidos")
   events = []
+  fecha_inicial_calendario = datetime.now().strftime("%Y-%m-%d")
   
   if not df_contenido.empty:
     for index, row in df_contenido.iterrows():
       try:
         raw_fecha = str(row.get("Fecha", "")).strip()
-        if raw_fecha and raw_fecha != "nan" and len(raw_fecha) >= 10:
-          # Formateo ultra-limpio YYYY-MM-DD
-          fecha_clean = str(pd.to_datetime(raw_fecha).date())
+        if raw_fecha and raw_fecha != "nan" and len(raw_fecha) >= 8:
+          # Convertir limpia a YYYY-MM-DD
+          f_dt = pd.to_datetime(raw_fecha)
+          fecha_clean = f_dt.strftime("%Y-%m-%d")
           
-          hora_ev = str(row.get("Hora", "")).strip() if row.get("Hora") else "18:00"
-          if len(hora_ev) == 5:
-            hora_ev += ":00"
+          # Guardamos la fecha de la última publicación para enfocar la vista si es necesario
+          fecha_inicial_calendario = fecha_clean
+          
+          hora_raw = str(row.get("Hora", "")).strip()
+          if not hora_raw or hora_raw == "nan":
+            hora_raw = "18:00"
+          
+          if len(hora_raw) == 5:
+            hora_raw += ":00"
 
           cont_txt = str(row.get("Contenido", "")).replace("nan", "")
           tema_txt = str(row.get("Tema", "")).replace("nan", "")
           titulo_base = cont_txt if cont_txt else tema_txt
 
-          titulo = f"[{hora_ev[:5]}] [{row.get('Formato', '')}] {titulo_base}"
+          titulo = f"[{hora_raw[:5]}] [{row.get('Formato', '')}] {titulo_base}"
           if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
             titulo = "📰 " + titulo
 
           events.append({
               "title": titulo,
-              "start": f"{fecha_clean}T{hora_ev}",
+              "start": f"{fecha_clean}T{hora_raw}",
               "backgroundColor": (
                   "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
               ),
-              "borderColor": "#3D82F6"
+              "borderColor": "#3D82F6",
+              "allDay": False
           })
       except Exception:
         continue
 
   calendar_options = {
       "initialView": "dayGridMonth",
+      "initialDate": fecha_inicial_calendario,
       "headerToolbar": {
           "left": "prev,next today",
           "center": "title",
@@ -312,8 +322,8 @@ with tab1:
       },
   }
   
-  # Se renderiza SIEMPRE para que el calendario esté presente visiblemente
-  calendar(events=events, options=calendar_options, key="calendario_estatico")
+  # Renderiza el calendario de forma estática y consistente
+  calendar(events=events, options=calendar_options, key="cal_v4_main")
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
