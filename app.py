@@ -7,14 +7,42 @@ import io
 import urllib.parse
 
 # Configuración de la página
-st.set_page_config(page_title="Planificador de Contenido Instagram", layout="wide", page_icon="📱")
+st.set_page_config(page_title="Planificador de Contenido Instagram", layout="wide", page_icon="🔒")
+
+# --- SISTEMA DE AUTENTICACIÓN / LOGIN ---
+APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
+
+def verificar_password():
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if not st.session_state.autenticado:
+        st.title("🔒 Acceso Restringido")
+        st.markdown("Esta herramienta contiene información confidencial de planificación interna. Por favor, ingresá la contraseña de acceso.")
+        
+        password_input = st.text_input("Contraseña de equipo:", type="password")
+        if st.button("Ingresar"):
+            if APP_PASSWORD and password_input == APP_PASSWORD:
+                st.session_state.autenticado = True
+                st.success("Acceso concedido.")
+                st.rerun()
+            else:
+                st.error("Contraseña incorrecta. Por favor, verificá con tu equipo.")
+        return False
+    return True
+
+# Si no está autenticado, detiene la ejecución del resto de la app
+if not verificar_password():
+    st.stop()
+
+# --- SI PASA EL LOGIN, SE EJECUTA LA HERRAMIENTA ---
 
 st.title("📱 Planificador Estratégico de Contenido - Instagram")
-st.markdown("Herramienta interactiva para la carga, gestión y visualización del calendario de contenidos con persistencia en GitHub.")
+st.markdown("Herramienta confidencial para la carga, gestión y visualización del calendario de contenidos.")
 
 # --- PARÁMETROS Y CONEXIÓN A GITHUB ---
 GITHUB_TOKEN = st.secrets.get("GITHUB_TOKEN", "")
-REPO_NAME = st.secrets.get("REPO_NAME", "")  # Ejemplo: "usuario/planificador-instagram"
+REPO_NAME = st.secrets.get("REPO_NAME", "")
 FILE_PATH = "planificacion_instagram.xlsx"
 
 def obtener_repo():
@@ -70,11 +98,16 @@ def guardar_datos_en_github(df, mensaje_commit="Actualización de contenidos"):
         df.to_excel(FILE_PATH, index=False)
         return True
 
-# Carga inicial de datos
+# Carga de datos
 df_contenido = cargar_datos_desde_github()
 
 # --- BARRA LATERAL: FORMULARIO DE CARGA ---
 st.sidebar.header("➕ Cargar Nuevo Contenido")
+
+# Botón para cerrar sesión en la barra lateral
+if st.sidebar.button("🔒 Cerrar Sesión"):
+    st.session_state.autenticado = False
+    st.rerun()
 
 with st.sidebar.form("form_carga", clear_on_submit=True):
     fecha = st.date_input("Fecha de Publicación", datetime.now())
@@ -114,9 +147,9 @@ with st.sidebar.form("form_carga", clear_on_submit=True):
         
         df_actualizado = pd.concat([df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True)
         
-        with st.spinner("Guardando y haciendo Commit en GitHub..."):
+        with st.spinner("Guardando de forma segura..."):
             if guardar_datos_en_github(df_actualizado, f"Agregado posteo: {gancho[:20]}"):
-                st.sidebar.success("¡Contenido guardado permanentemente en el repositorio!")
+                st.sidebar.success("¡Contenido guardado con éxito!")
                 st.rerun()
 
 # --- PANEL CENTRAL: MÉTRICAS Y RESUMEN ---
@@ -188,7 +221,6 @@ with tab3:
             st.write("**Formatos Utilizados**")
             st.bar_chart(df_contenido["Formato"].value_counts())
 
-# --- NUEVA PESTAÑA: REPORTE PARA WHATSAPP ---
 with tab4:
     st.subheader("📱 Generador de Resumen Semanal para Validación")
     st.markdown("Seleccioná el rango de fechas para armar el mensaje de validación:")
@@ -198,16 +230,13 @@ with tab4:
     fecha_fin = col_f2.date_input("Fecha Fin de Semana", datetime.now() + timedelta(days=6))
     
     if not df_contenido.empty:
-        # Convertir columna Fecha a datetime para filtrar
         df_temp = df_contenido.copy()
         df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce")
         
-        # Filtrar por rango
         mask = (df_temp["Fecha_dt"] >= pd.to_datetime(fecha_inicio)) & (df_temp["Fecha_dt"] <= pd.to_datetime(fecha_fin))
         df_semana = df_temp.loc[mask].sort_values("Fecha_dt")
         
         if not df_semana.empty:
-            # Armar el texto de WhatsApp
             msj = f"*📌 PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
             msj += f"*Semana:* {fecha_inicio.strftime('%d/%m')} al {fecha_fin.strftime('%d/%m')}\n\n"
             msj += "Hola! Te comparto la propuesta de contenidos para esta semana para tu revisión y visto bueno:\n\n"
@@ -229,7 +258,6 @@ with tab4:
             st.markdown("### 📄 Vista previa del mensaje:")
             st.code(msj, language="markdown")
             
-            # Botón directo para abrir WhatsApp
             texto_encoded = urllib.parse.quote(msj)
             ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
             st.markdown(f'<a href="{ws_url}" target="_blank"><button style="background-color:#25D366; color:white; border:none; padding:10px 20px; border-radius:8px; cursor:pointer; font-weight:bold; font-size:16px;">📲 Abrir y enviar por WhatsApp</button></a>', unsafe_allow_html=True)
