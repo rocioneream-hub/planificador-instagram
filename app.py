@@ -136,6 +136,7 @@ def guardar_datos_en_github(
   repo = obtener_repo()
   if repo:
     try:
+      # Intenta actualizar el archivo si existe, sino lo CREA desde cero
       try:
         contents = repo.get_contents(FILE_PATH)
         repo.update_file(
@@ -229,7 +230,7 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
   df_actualizado = pd.concat(
       [df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True
   )
-  with st.spinner("Guardando de forma segura..."):
+  with st.spinner("Creando archivo Excel y guardando datos..."):
     if guardar_datos_en_github(
         df_actualizado, f"Agregado posteo: {contenido_post[:20]}"
     ):
@@ -277,32 +278,38 @@ with tab1:
     for index, row in df_contenido.iterrows():
       try:
         raw_fecha = str(row.get("Fecha", "")).strip()
-        if raw_fecha and raw_fecha != "nan" and len(raw_fecha) >= 8:
-          fecha_clean = str(pd.to_datetime(raw_fecha).date())
-          
-          hora_raw = str(row.get("Hora", "")).strip()
-          if not hora_raw or hora_raw == "nan":
-            hora_raw = "18:00"
-          if len(hora_raw) == 5:
-            hora_raw += ":00"
+        if raw_fecha and raw_fecha.lower() != "nan":
+          dt_parsed = pd.to_datetime(raw_fecha, errors="coerce")
+          if pd.notnull(dt_parsed):
+            fecha_clean = dt_parsed.strftime("%Y-%m-%d")
+            
+            hora_raw = str(row.get("Hora", "")).strip()
+            if not hora_raw or hora_raw.lower() == "nan":
+              hora_raw = "18:00"
+            if len(hora_raw) == 5:
+              hora_raw += ":00"
 
-          cont_txt = str(row.get("Contenido", "")).replace("nan", "")
-          tema_txt = str(row.get("Tema", "")).replace("nan", "")
-          titulo_base = cont_txt if cont_txt else tema_txt
+            cont_txt = str(row.get("Contenido", "")).replace("nan", "").strip()
+            tema_txt = str(row.get("Tema", "")).replace("nan", "").strip()
+            titulo_base = cont_txt if cont_txt else (tema_txt if tema_txt else "Sin título")
 
-          titulo = f"[{hora_raw[:5]}] [{row.get('Formato', '')}] {titulo_base}"
-          if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
-            titulo = "📰 " + titulo
+            titulo = f"[{hora_raw[:5]}] [{row.get('Formato', '')}] {titulo_base}"
+            if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
+              titulo = "📰 " + titulo
 
-          events.append({
-              "title": titulo,
-              "start": f"{fecha_clean}T{hora_raw}",
-              "color": "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
-          })
+            events.append({
+                "title": titulo,
+                "start": f"{fecha_clean}T{hora_raw}",
+                "color": "#FF4B4B" if str(row.get("Prioridad", "")) == "Alta" else "#3D82F6"
+            })
       except Exception:
         continue
 
-  # RENDERIZADO DIRECTO EN HTML DE FULLCALENDAR
+  if events:
+    st.caption(f"✓ {len(events)} publicación(es) cargada(s) en el calendario.")
+  else:
+    st.info("No hay publicaciones visibles todavía. Cargar tu primer contenido desde el menú lateral para inicializar el Excel.")
+
   events_json = json.dumps(events)
   calendar_html = f"""
   <!DOCTYPE html>
@@ -312,9 +319,9 @@ with tab1:
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
     <style>
-      body {{ font-family: sans-serif; margin: 0; padding: 10px; background-color: #ffffff; }}
+      body {{ font-family: sans-serif; margin: 0; padding: 5px; background-color: #ffffff; }}
       #calendar {{ max-width: 100%; margin: 0 auto; }}
-      .fc-event {{ cursor: pointer; padding: 2px; font-size: 0.85em; }}
+      .fc-event {{ cursor: pointer; padding: 2px 4px; font-size: 0.85em; border-radius: 3px; }}
     </style>
   </head>
   <body>
@@ -325,6 +332,7 @@ with tab1:
         var calendar = new FullCalendar.Calendar(calendarEl, {{
           initialView: 'dayGridMonth',
           locale: 'es',
+          height: 'auto',
           headerToolbar: {{
             left: 'prev,next today',
             center: 'title',
@@ -338,7 +346,7 @@ with tab1:
   </body>
   </html>
   """
-  components.html(calendar_html, height=650, scrolling=True)
+  components.html(calendar_html, height=700, scrolling=True)
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
@@ -370,7 +378,7 @@ with tab2:
         e_fecha = st.date_input(
             "Fecha",
             pd.to_datetime(registro_actual.get("Fecha")).date()
-            if registro_actual.get("Fecha")
+            if registro_actual.get("Fecha") and str(registro_actual.get("Fecha")).lower() != "nan"
             else datetime.now(),
         )
         e_hora = st.text_input(
