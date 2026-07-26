@@ -1,11 +1,9 @@
-import json
 import io
 import urllib.parse
 from datetime import datetime, timedelta
 from github import Github
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
@@ -265,183 +263,76 @@ st.divider()
 
 # --- PESTAÑAS DE VISUALIZACIÓN ---
 tab1, tab2, tab3, tab4 = st.tabs([
-    "📅 Calendario Visual",
+    "📅 Calendario Cronológico",
     "📋 Tabla, Edición y Bajas",
     "📊 Análisis",
     "📱 Resumen Semanal para Validación",
 ])
 
 with tab1:
-  st.subheader("Calendario de Contenidos")
-  events = []
+  st.subheader("🗓️ Agenda Editorial Cronológica")
+  st.markdown("Visualizá tus publicaciones ordenadas por día. Podés desplegar cada tarjeta para ver o abrir sus enlaces de Drive/Canva.")
 
   if not df_contenido.empty:
-    for index, row in df_contenido.iterrows():
-      try:
-        raw_fecha = str(row.get("Fecha", "")).strip()
-        if raw_fecha and raw_fecha.lower() != "nan":
-          dt_parsed = pd.to_datetime(raw_fecha, errors="coerce")
-          if pd.notnull(dt_parsed):
-            fecha_clean = dt_parsed.strftime("%Y-%m-%d")
+    # Copia ordenada por fecha
+    df_cal = df_contenido.copy()
+    df_cal["Fecha_dt"] = pd.to_datetime(df_cal["Fecha"], errors="coerce")
+    df_cal = df_cal.sort_values(by=["Fecha_dt", "Hora"], ascending=True)
 
-            hora_raw = str(row.get("Hora", "")).strip()
-            if not hora_raw or hora_raw.lower() == "nan":
-              hora_raw = "18:00"
-            if len(hora_raw) == 5:
-              hora_raw += ":00"
+    # Agrupamos por fecha para armar bloques diarios limpios
+    fechas_unicas = df_cal["Fecha_dt"].dropna().dt.date.unique()
 
-            cont_txt = str(row.get("Contenido", "")).replace("nan", "").strip()
-            tema_txt = str(row.get("Tema", "")).replace("nan", "").strip()
-            fmt_txt = str(row.get("Formato", "")).replace("nan", "").strip()
+    if len(fechas_unicas) > 0:
+      for f in fechas_unicas:
+        df_dia = df_cal[df_cal["Fecha_dt"].dt.date == f]
+        fecha_str_fmt = pd.to_datetime(f).strftime("%A %d de %B de %Y")
+        
+        # Muestra la cabecera de la fecha
+        st.markdown(f"#### 📅 {fecha_str_fmt}")
 
-            # Asegura que SIEMPRE exista un texto para el título del evento
-            if cont_txt:
-              titulo_base = cont_txt
-            elif tema_txt:
-              titulo_base = tema_txt
-            else:
-              titulo_base = "Sin descripción"
+        for _, row in df_dia.iterrows():
+          prio_emoji = "🔴 Alta" if row.get("Prioridad") == "Alta" else ("🟡 Media" if row.get("Prioridad") == "Media" else "🟢 Baja")
+          gac_emoji = " 📰 (Gacetilla)" if str(row.get("Requiere_Gacetilla")).strip() in ["Sí", "Si"] else ""
+          
+          hora_display = str(row.get("Hora", "18:00"))[:5]
+          formato_display = str(row.get("Formato", "Post"))
+          contenido_display = str(row.get("Contenido", "")).strip() or str(row.get("Tema", "Publicación"))
 
-            titulo = f"[{hora_raw[:5]}] [{fmt_txt if fmt_txt else 'Post'}] {titulo_base}"
-            if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
-              titulo = "📰 " + titulo
+          # Título interactivo desplegable (Expander nativo)
+          titulo_expander = f"⏰ {hora_display} hs | [{formato_display}] {contenido_display}{gac_emoji} | Estado: {row.get('Estado', 'Borrador')}"
+          
+          with st.expander(titulo_expander):
+            c_det1, c_det2 = st.columns(2)
+            with c_det1:
+              st.write(f"**Tema:** {row.get('Tema', '-')}")
+              st.write(f"**Objetivo:** {row.get('Objetivo', '-')}")
+              st.write(f"**Prioridad:** {prio_emoji}")
+              st.write(f"**Estado:** {row.get('Estado', '-')}")
+            
+            with c_det2:
+              st.write("**Recursos y Documentos:**")
+              if row.get('Link_Visual'):
+                st.markdown(f"• 🔗 [Link al Contenido / Arte]({row['Link_Visual']})")
+              else:
+                st.write("• 🔗 Link al Contenido: *No cargado*")
+                
+              if row.get('Link_Doc_Copys'):
+                st.markdown(f"• 📄 [Documento de Copys]({row['Link_Doc_Copys']})")
+              else:
+                st.write("• 📄 Documento de Copys: *No cargado*")
 
-            events.append({
-                "title": titulo,
-                "start": f"{fecha_clean}T{hora_raw}",
-                "color": (
-                    "#FF4B4B"
-                    if str(row.get("Prioridad", "")) == "Alta"
-                    else "#3D82F6"
-                ),
-                "extendedProps": {
-                    "tema": tema_txt,
-                    "formato": fmt_txt,
-                    "contenido": cont_txt,
-                    "objetivo": str(row.get("Objetivo", "")),
-                    "estado": str(row.get("Estado", "")),
-                    "prioridad": str(row.get("Prioridad", "")),
-                    "link_visual": str(row.get("Link_Visual", "")),
-                    "link_copys": str(row.get("Link_Doc_Copys", "")),
-                    "gacetilla": str(row.get("Requiere_Gacetilla", "")),
-                    "link_gacetilla": str(row.get("Link_Gacetilla", "")),
-                    "hora": hora_raw[:5],
-                    "fecha": fecha_clean,
-                }
-            })
-      except Exception:
-        continue
+              if str(row.get("Requiere_Gacetilla")).strip() in ["Sí", "Si"]:
+                if row.get('Link_Gacetilla'):
+                  st.markdown(f"• 📰 [Borrador de Gacetilla]({row['Link_Gacetilla']})")
+                else:
+                  st.write("• 📰 Gacetilla: *Sí (Sin link cargado)*")
 
-  if events:
-    st.caption(f"✓ {len(events)} publicación(es) cargada(s). Hacé clic en cualquier evento para desplegar su detalle.")
+            st.caption(f"ID del Registro: {row.get('ID')}")
+        st.divider()
+    else:
+      st.info("No hay fechas válidas en las publicaciones guardadas.")
   else:
-    st.info(
-        "No hay publicaciones visibles todavía. Cargar tu primer contenido"
-        " desde el menú lateral."
-    )
-
-  events_json = json.dumps(events)
-  calendar_html = f"""
-  <!DOCTYPE html>
-  <html>
-  <head>
-    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
-    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
-    <style>
-      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 5px; background-color: #ffffff; color: #31333F; }}
-      #calendar {{ max-width: 100%; margin: 0 auto; }}
-      .fc-event {{ cursor: pointer; padding: 2px 4px; font-size: 0.85em; border-radius: 4px; }}
-      
-      #detalle-container {{
-        display: none;
-        margin-top: 20px;
-        padding: 16px;
-        border-radius: 8px;
-        background-color: #f8f9fa;
-        border: 1px solid #e9ecef;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-      }}
-      #detalle-container h4 {{ margin-top: 0; color: #1f2937; margin-bottom: 12px; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; }}
-      .detalle-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }}
-      .detalle-item {{ background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; }}
-      .detalle-item span {{ font-size: 0.75em; color: #6b7280; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px; }}
-      .detalle-item p {{ margin: 0; font-size: 0.9em; font-weight: 500; color: #111827; word-break: break-word; }}
-      a.btn-link {{ color: #2563eb; text-decoration: underline; font-weight: 500; }}
-    </style>
-  </head>
-  <body>
-    <div id='calendar'></div>
-    
-    <div id='detalle-container'>
-      <h4 id='det-titulo'>📋 Detalle del Contenido Seleccionado 
-        <button onclick="cerrarDetalle()" style="background:none; border:none; cursor:pointer; font-size:1.2em; color:#6b7280;">✕</button>
-      </h4>
-      <div class='detalle-grid'>
-        <div class='detalle-item'><span>Fecha y Hora</span><p id='det-fechahora'>-</p></div>
-        <div class='detalle-item'><span>Tema</span><p id='det-tema'>-</p></div>
-        <div class='detalle-item'><span>Formato</span><p id='det-formato'>-</p></div>
-        <div class='detalle-item'><span>Estado</span><p id='det-estado'>-</p></div>
-        <div class='detalle-item'><span>Objetivo</span><p id='det-objetivo'>-</p></div>
-        <div class='detalle-item'><span>Prioridad</span><p id='det-prioridad'>-</p></div>
-      </div>
-      <div class='detalle-item' style='margin-bottom: 12px;'><span>Contenido / Gancho</span><p id='det-contenido'>-</p></div>
-      <div class='detalle-grid'>
-        <div class='detalle-item'><span>Link al Contenido</span><p id='det-linkvisual'>-</p></div>
-        <div class='detalle-item'><span>Doc Copys Semanal</span><p id='det-linkcopys'>-</p></div>
-        <div class='detalle-item'><span>Gacetilla de Prensa</span><p id='det-gacetilla'>-</p></div>
-      </div>
-    </div>
-
-    <script>
-      function cerrarDetalle() {{
-        document.getElementById('detalle-container').style.display = 'none';
-      }}
-
-      document.addEventListener('DOMContentLoaded', function() {{
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {{
-          initialView: 'dayGridMonth',
-          locale: 'es',
-          height: 'auto',
-          headerToolbar: {{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek'
-          }},
-          events: {events_json},
-          eventClick: function(info) {{
-            var props = info.event.extendedProps;
-            
-            document.getElementById('det-fechahora').innerText = props.fecha + ' a las ' + props.hora + ' hs';
-            document.getElementById('det-tema').innerText = props.tema || 'N/A';
-            document.getElementById('det-formato').innerText = props.formato || 'N/A';
-            document.getElementById('det-estado').innerText = props.estado || 'N/A';
-            document.getElementById('det-objetivo').innerText = props.objetivo || 'N/A';
-            document.getElementById('det-prioridad').innerText = props.prioridad || 'N/A';
-            document.getElementById('det-contenido').innerText = props.contenido || 'Sin descripción';
-            
-            document.getElementById('det-linkvisual').innerHTML = props.link_visual ? '<a class="btn-link" href="' + props.link_visual + '" target="_blank">Abrir Recurso</a>' : 'Sin enlace';
-            document.getElementById('det-linkcopys').innerHTML = props.link_copys ? '<a class="btn-link" href="' + props.link_copys + '" target="_blank">Abrir Doc Copys</a>' : 'Sin enlace';
-            
-            var gacetillaTxt = props.gacetilla === 'Sí' || props.gacetilla === 'Si' ? 'Sí' : 'No';
-            if ((props.gacetilla === 'Sí' || props.gacetilla === 'Si') && props.link_gacetilla) {{
-              gacetillaTxt += ' - <a class="btn-link" href="' + props.link_gacetilla + '" target="_blank">Ver Borrador</a>';
-            }}
-            document.getElementById('det-gacetilla').innerHTML = gacetillaTxt;
-
-            var container = document.getElementById('detalle-container');
-            container.style.display = 'block';
-            container.scrollIntoView({{ behavior: 'smooth' }});
-          }}
-        }});
-        calendar.render();
-      }});
-    </script>
-  </body>
-  </html>
-  """
-  components.html(calendar_html, height=850, scrolling=True)
+    st.info("No hay contenidos cargados aún. Usá el formulario de la izquierda para agregar tu primera publicación.")
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
