@@ -611,7 +611,6 @@ with tab4:
     df_semana = df_temp.loc[mask].sort_values("Fecha_dt")
 
     if not df_semana.empty:
-      # Pestañas secundarias para elegir el tipo de mensaje a generar
       subtab1, subtab2 = st.tabs([
           "📝 Mensaje de Propuesta (Para Revisión)",
           "📢 Programación Semanal Oficial (Ya Validado)"
@@ -670,7 +669,7 @@ with tab4:
             unsafe_allow_html=True,
         )
 
-      # --- OPCIÓN 2: PROGRAMACIÓN OFICIAL VALIDADA ---
+      # --- OPCIÓN 2: PROGRAMACIÓN OFICIAL VALIDADA (SIN LINKS) ---
       with subtab2:
         dia_ini = fecha_inicio.strftime('%d')
         dia_fin_str = fecha_fin.strftime('%d')
@@ -689,18 +688,7 @@ with tab4:
 
           msj_oficial += f"📌 *{nom_dia} {f_dia}{hora_str} - {row.get('Formato', '')}*\n"
           msj_oficial += f"• *Tema:* {row.get('Tema', '')}\n"
-          msj_oficial += f"• *Contenido:* {row.get('Contenido', '')}\n"
-
-          if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
-            msj_oficial += f"• *Link al contenido:* {row['Link_Visual']}\n"
-
-          if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
-            msj_oficial += "• *Gacetilla de prensa:* Sí"
-            if row.get("Link_Gacetilla"):
-              msj_oficial += f" ({row['Link_Gacetilla']})"
-            msj_oficial += "\n"
-
-          msj_oficial += "\n"
+          msj_oficial += f"• *Contenido:* {row.get('Contenido', '')}\n\n"
 
         st.markdown("### Vista previa del mensaje oficial:")
         st.code(msj_oficial, language="markdown")
