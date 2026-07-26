@@ -527,7 +527,7 @@ with tab4:
       with subtab1:
         msj_propuesta = "*PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
         msj_propuesta += f"*Semana:* {fecha_inicio.strftime('%d/%m')} al {fecha_fin.strftime('%d/%m')}\n\n"
-        msj_propuesta += "Hola! Te comparto la propuesta de contenidos para esta semana para tu revisión y visto bueno:\n\n"
+        msj_propuesta += "Hola Dai! Te compartimos la propuesta de contenidos para la semana para tu revisión y visto bueno:\n\n"
 
         link_doc_encontrado = ""
 
@@ -556,7 +556,7 @@ with tab4:
         if link_doc_encontrado:
           msj_propuesta += f"📄 *Documento general con Copys de la semana:* {link_doc_encontrado}\n\n"
 
-        msj_propuesta += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
+        msj_propuesta += "Quedamos atentos a tus comentarios o sugerencias. Respecto a los Copys, podes modificarlos directamente en el DOC ¡Muchas gracias!"
 
         st.markdown("### Vista previa:")
         st.code(msj_propuesta, language="markdown")
