@@ -7,7 +7,7 @@ import streamlit as st
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Planificador de Contenido Instagram",
+    page_title="Planificador de Contenido UPEU",
     layout="wide",
     page_icon="📅",
 )
@@ -42,7 +42,7 @@ if not verificar_password():
   st.stop()
 
 # --- SI PASA EL LOGIN, SE EJECUTA LA HERRAMIENTA ---
-st.title("📅 Planificador Estratégico de Contenido Instagram & Prensa")
+st.title("📅 Planificador de Contenido UPEU")
 st.markdown(
     "Herramienta confidencial para la carga, gestión y visualización del"
     " calendario editorial."
