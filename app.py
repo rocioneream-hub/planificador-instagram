@@ -7,7 +7,7 @@ import streamlit as st
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="Planificador de Contenido UPEU",
+    page_title="Planificador de Contenido Instagram",
     layout="wide",
     page_icon="📅",
 )
@@ -42,7 +42,7 @@ if not verificar_password():
   st.stop()
 
 # --- SI PASA EL LOGIN, SE EJECUTA LA HERRAMIENTA ---
-st.title("📅 Planificador de Contenido UPEU")
+st.title("📅 Planificador Estratégico de Contenido Instagram & Prensa")
 st.markdown(
     "Herramienta confidencial para la carga, gestión y visualización del"
     " calendario editorial."
@@ -209,6 +209,9 @@ estado = st.sidebar.selectbox("Estado", OPCIONES_ESTADO)
 prioridad = st.sidebar.select_slider("Prioridad", options=OPCIONES_PRIORIDAD)
 
 if st.sidebar.button("🚀 Cargar al Calendario"):
+  # Traemos los datos frescos de GitHub antes de concatenar
+  df_existente = cargar_datos_desde_github()
+  
   fecha_str = str(fecha)[:10]
   nuevo_id = int(datetime.now().timestamp())
   nuevo_registro = {
@@ -227,9 +230,9 @@ if st.sidebar.button("🚀 Cargar al Calendario"):
       "Link_Gacetilla": link_gacetilla,
   }
   df_actualizado = pd.concat(
-      [df_contenido, pd.DataFrame([nuevo_registro])], ignore_index=True
+      [df_existente, pd.DataFrame([nuevo_registro])], ignore_index=True
   )
-  with st.spinner("Guardando de forma segura..."):
+  with st.spinner("Guardando de forma permanente en GitHub..."):
     if guardar_datos_en_github(
         df_actualizado, f"Agregado posteo: {contenido_post[:20]}"
     ):
@@ -274,20 +277,20 @@ with tab1:
   st.markdown("Visualizá tus publicaciones ordenadas por día. Podés desplegar cada tarjeta para ver o abrir sus enlaces de Drive/Canva.")
 
   if not df_contenido.empty:
-    # Copia ordenada por fecha
     df_cal = df_contenido.copy()
-    df_cal["Fecha_dt"] = pd.to_datetime(df_cal["Fecha"], errors="coerce")
+    # Conversor ultra-flexible que soporta cualquier formato previo de fecha
+    df_cal["Fecha_dt"] = pd.to_datetime(df_cal["Fecha"], errors="coerce", dayfirst=True)
     df_cal = df_cal.sort_values(by=["Fecha_dt", "Hora"], ascending=True)
 
-    # Agrupamos por fecha para armar bloques diarios limpios
-    fechas_unicas = df_cal["Fecha_dt"].dropna().dt.date.unique()
+    # Si hay filas con fechas raras no parseadas, no las elimina, las asigna a hoy
+    df_cal["Fecha_dt"] = df_cal["Fecha_dt"].fillna(pd.to_datetime("today"))
+    fechas_unicas = df_cal["Fecha_dt"].dt.date.unique()
 
     if len(fechas_unicas) > 0:
       for f in fechas_unicas:
         df_dia = df_cal[df_cal["Fecha_dt"].dt.date == f]
-        fecha_str_fmt = pd.to_datetime(f).strftime("%A %d de %B de %Y")
+        fecha_str_fmt = pd.to_datetime(f).strftime("%d/%m/%Y")
         
-        # Muestra la cabecera de la fecha
         st.markdown(f"#### 📅 {fecha_str_fmt}")
 
         for _, row in df_dia.iterrows():
@@ -298,7 +301,6 @@ with tab1:
           formato_display = str(row.get("Formato", "Post"))
           contenido_display = str(row.get("Contenido", "")).strip() or str(row.get("Tema", "Publicación"))
 
-          # Título interactivo desplegable (Expander nativo)
           titulo_expander = f"⏰ {hora_display} hs | [{formato_display}] {contenido_display}{gac_emoji} | Estado: {row.get('Estado', 'Borrador')}"
           
           with st.expander(titulo_expander):
@@ -311,18 +313,18 @@ with tab1:
             
             with c_det2:
               st.write("**Recursos y Documentos:**")
-              if row.get('Link_Visual'):
+              if row.get('Link_Visual') and str(row['Link_Visual']).strip():
                 st.markdown(f"• 🔗 [Link al Contenido / Arte]({row['Link_Visual']})")
               else:
                 st.write("• 🔗 Link al Contenido: *No cargado*")
                 
-              if row.get('Link_Doc_Copys'):
+              if row.get('Link_Doc_Copys') and str(row['Link_Doc_Copys']).strip():
                 st.markdown(f"• 📄 [Documento de Copys]({row['Link_Doc_Copys']})")
               else:
                 st.write("• 📄 Documento de Copys: *No cargado*")
 
               if str(row.get("Requiere_Gacetilla")).strip() in ["Sí", "Si"]:
-                if row.get('Link_Gacetilla'):
+                if row.get('Link_Gacetilla') and str(row['Link_Gacetilla']).strip():
                   st.markdown(f"• 📰 [Borrador de Gacetilla]({row['Link_Gacetilla']})")
                 else:
                   st.write("• 📰 Gacetilla: *Sí (Sin link cargado)*")
@@ -501,7 +503,7 @@ with tab4:
 
   if not df_contenido.empty:
     df_temp = df_contenido.copy()
-    df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce")
+    df_temp["Fecha_dt"] = pd.to_datetime(df_temp["Fecha"], errors="coerce", dayfirst=True)
     mask = (df_temp["Fecha_dt"] >= pd.to_datetime(fecha_inicio)) & (
         df_temp["Fecha_dt"] <= pd.to_datetime(fecha_fin)
     )
@@ -527,7 +529,7 @@ with tab4:
       with subtab1:
         msj_propuesta = "*PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
         msj_propuesta += f"*Semana:* {fecha_inicio.strftime('%d/%m')} al {fecha_fin.strftime('%d/%m')}\n\n"
-        msj_propuesta += "Hola Dai! Te compartimos la propuesta de contenidos para la semana para tu revisión y visto bueno:\n\n"
+        msj_propuesta += "Hola! Te comparto la propuesta de contenidos para esta semana para tu revisión y visto bueno:\n\n"
 
         link_doc_encontrado = ""
 
@@ -556,7 +558,7 @@ with tab4:
         if link_doc_encontrado:
           msj_propuesta += f"📄 *Documento general con Copys de la semana:* {link_doc_encontrado}\n\n"
 
-        msj_propuesta += "Quedamos atentos a tus comentarios o sugerencias. Respecto a los Copys, podes modificarlos directamente en el DOC ¡Muchas gracias!"
+        msj_propuesta += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
 
         st.markdown("### Vista previa:")
         st.code(msj_propuesta, language="markdown")
@@ -566,7 +568,7 @@ with tab4:
             unsafe_allow_html=True,
         )
 
-      # --- OPCIÓN 2: PROGRAMACIÓN OFICIAL VALIDADA (SIN LINKS) ---
+      # --- OPCIÓN 2: PROGRAMACIÓN OFICIAL VALIDADA ---
       with subtab2:
         dia_ini = fecha_inicio.strftime('%d')
         dia_fin_str = fecha_fin.strftime('%d')
