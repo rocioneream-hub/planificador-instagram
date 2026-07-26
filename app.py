@@ -268,7 +268,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📅 Calendario Visual",
     "📋 Tabla, Edición y Bajas",
     "📊 Análisis",
-    "📱 Reporte para WhatsApp",
+    "📱 Resumen Semanal para Validación",
 ])
 
 with tab1:
@@ -308,7 +308,6 @@ with tab1:
                     if str(row.get("Prioridad", "")) == "Alta"
                     else "#3D82F6"
                 ),
-                # Propiedades extendidas para mostrar abajo al hacer clic
                 "extendedProps": {
                     "tema": str(row.get("Tema", "")),
                     "formato": str(row.get("Formato", "")),
@@ -348,7 +347,6 @@ with tab1:
       #calendar {{ max-width: 100%; margin: 0 auto; }}
       .fc-event {{ cursor: pointer; padding: 2px 4px; font-size: 0.85em; border-radius: 4px; }}
       
-      /* Tarjeta de detalle que se despliega abajo */
       #detalle-container {{
         display: none;
         margin-top: 20px;
@@ -363,7 +361,6 @@ with tab1:
       .detalle-item {{ background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; }}
       .detalle-item span {{ font-size: 0.75em; color: #6b7280; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px; }}
       .detalle-item p {{ margin: 0; font-size: 0.9em; font-weight: 500; color: #111827; word-break: break-word; }}
-      .badge {{ display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; color: white; }}
       a.btn-link {{ color: #2563eb; text-decoration: underline; font-weight: 500; }}
     </style>
   </head>
@@ -418,7 +415,6 @@ with tab1:
             document.getElementById('det-prioridad').innerText = props.prioridad || 'N/A';
             document.getElementById('det-contenido').innerText = props.contenido || 'Sin descripción';
             
-            // Render de Links
             document.getElementById('det-linkvisual').innerHTML = props.link_visual ? '<a class="btn-link" href="' + props.link_visual + '" target="_blank">Abrir Recurso</a>' : 'Sin enlace';
             document.getElementById('det-linkcopys').innerHTML = props.link_copys ? '<a class="btn-link" href="' + props.link_copys + '" target="_blank">Abrir Doc Copys</a>' : 'Sin enlace';
             
@@ -597,10 +593,8 @@ with tab3:
       st.bar_chart(df_contenido["Formato"].value_counts())
 
 with tab4:
-  st.subheader("📱 Generador de Resumen Semanal para Validación")
-  st.markdown(
-      "Seleccioná el rango de fechas para armar el mensaje de validación:"
-  )
+  st.subheader("Resumen Semanal para Validación")
+  st.markdown("Seleccioná el rango de fechas para armar el mensaje:")
 
   col_f1, col_f2 = st.columns(2)
   fecha_inicio = col_f1.date_input("Fecha Inicio de Semana", datetime.now())
@@ -617,71 +611,108 @@ with tab4:
     df_semana = df_temp.loc[mask].sort_values("Fecha_dt")
 
     if not df_semana.empty:
-      msj = "*PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
-      msj += (
-          f"*Semana:* {fecha_inicio.strftime('%d/%m')} al"
-          f" {fecha_fin.strftime('%d/%m')}\n\n"
-      )
-      msj += (
-          "Hola! Te comparto la propuesta de contenidos para esta semana para"
-          " tu revisión y visto bueno:\n\n"
-      )
+      # Pestañas secundarias para elegir el tipo de mensaje a generar
+      subtab1, subtab2 = st.tabs([
+          "📝 Mensaje de Propuesta (Para Revisión)",
+          "📢 Programación Semanal Oficial (Ya Validado)"
+      ])
 
-      link_doc_encontrado = ""
+      meses_es = {
+          1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+          5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+          9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+      }
+      dias_semana_es = {
+          "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miércoles",
+          "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sábado", "Sunday": "Domingo"
+      }
 
-      for index, row in df_semana.iterrows():
-        fecha_fmt = (
-            pd.to_datetime(row["Fecha"]).strftime("%d/%m")
-            if row.get("Fecha")
-            else ""
+      # --- OPCIÓN 1: PROPUESTA DE REVISIÓN ---
+      with subtab1:
+        msj_propuesta = "*PLANIFICACIÓN DE CONTENIDO INSTAGRAM*\n"
+        msj_propuesta += f"*Semana:* {fecha_inicio.strftime('%d/%m')} al {fecha_fin.strftime('%d/%m')}\n\n"
+        msj_propuesta += "Hola! Te comparto la propuesta de contenidos para esta semana para tu revisión y visto bueno:\n\n"
+
+        link_doc_encontrado = ""
+
+        for index, row in df_semana.iterrows():
+          fecha_fmt = pd.to_datetime(row["Fecha"]).strftime("%d/%m") if row.get("Fecha") else ""
+          hora_fmt = f" - {row['Hora']} hs" if row.get("Hora") and str(row["Hora"]).strip() else ""
+
+          msj_propuesta += f"*{fecha_fmt}{hora_fmt} - {row.get('Formato', '')}*\n"
+          msj_propuesta += f"• *Tema:* {row.get('Tema', '')}\n"
+          msj_propuesta += f"• *Contenido:* {row.get('Contenido', '')}\n"
+
+          if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
+            msj_propuesta += f"• *Link al contenido:* {row['Link_Visual']}\n"
+
+          if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
+            msj_propuesta += "• *Gacetilla de prensa:* Sí"
+            if row.get("Link_Gacetilla"):
+              msj_propuesta += f" ({row['Link_Gacetilla']})"
+            msj_propuesta += "\n"
+
+          msj_propuesta += f"• *Estado:* {row.get('Estado', '')}\n\n"
+
+          if not link_doc_encontrado and row.get("Link_Doc_Copys"):
+            link_doc_encontrado = row["Link_Doc_Copys"]
+
+        if link_doc_encontrado:
+          msj_propuesta += f"📄 *Documento general con Copys de la semana:* {link_doc_encontrado}\n\n"
+
+        msj_propuesta += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
+
+        st.markdown("### Vista previa:")
+        st.code(msj_propuesta, language="markdown")
+        ws_url1 = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msj_propuesta)}"
+        st.markdown(
+            f'<a href="{ws_url1}" target="_blank"><button style="background-color: #25D366; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Abrir y enviar por WhatsApp</button></a>',
+            unsafe_allow_html=True,
         )
-        hora_fmt = (
-            f" - {row['Hora']} hs"
-            if row.get("Hora") and str(row["Hora"]).strip()
-            else ""
+
+      # --- OPCIÓN 2: PROGRAMACIÓN OFICIAL VALIDADA ---
+      with subtab2:
+        dia_ini = fecha_inicio.strftime('%d')
+        dia_fin_str = fecha_fin.strftime('%d')
+        mes_nombre = meses_es.get(fecha_fin.month, fecha_fin.strftime('%B'))
+
+        msj_oficial = "📣 *PROGRAMACIÓN SEMANAL DE COMUNICACIÓN*\n"
+        msj_oficial += f"📅 *Del {dia_ini} al {dia_fin_str} de {mes_nombre}*\n\n"
+        msj_oficial += "Buen día, equipo 👋\n"
+        msj_oficial += "Compartimos los temas que se comunicarán públicamente desde la Secretaría de la Unidad Provincial de Enlace con Universidades:\n\n"
+
+        for index, row in df_semana.iterrows():
+          dt_row = pd.to_datetime(row["Fecha"])
+          nom_dia = dias_semana_es.get(dt_row.strftime('%A'), dt_row.strftime('%A'))
+          f_dia = dt_row.strftime('%d/%m')
+          hora_str = f" ({row['Hora']} hs)" if row.get("Hora") and str(row["Hora"]).strip() else ""
+
+          msj_oficial += f"📌 *{nom_dia} {f_dia}{hora_str} - {row.get('Formato', '')}*\n"
+          msj_oficial += f"• *Tema:* {row.get('Tema', '')}\n"
+          msj_oficial += f"• *Contenido:* {row.get('Contenido', '')}\n"
+
+          if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
+            msj_oficial += f"• *Link al contenido:* {row['Link_Visual']}\n"
+
+          if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
+            msj_oficial += "• *Gacetilla de prensa:* Sí"
+            if row.get("Link_Gacetilla"):
+              msj_oficial += f" ({row['Link_Gacetilla']})"
+            msj_oficial += "\n"
+
+          msj_oficial += "\n"
+
+        st.markdown("### Vista previa del mensaje oficial:")
+        st.code(msj_oficial, language="markdown")
+        ws_url2 = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msj_oficial)}"
+        st.markdown(
+            f'<a href="{ws_url2}" target="_blank"><button style="background-color: #25D366; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">Abrir y enviar por WhatsApp</button></a>',
+            unsafe_allow_html=True,
         )
 
-        msj += f"*{fecha_fmt}{hora_fmt} - {row.get('Formato', '')}*\n"
-        msj += f"• *Tema:* {row.get('Tema', '')}\n"
-        msj += f"• *Contenido:* {row.get('Contenido', '')}\n"
-
-        if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
-          msj += f"• *Link al contenido:* {row['Link_Visual']}\n"
-
-        if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
-          msj += "• *Gacetilla de prensa:* Sí"
-          if row.get("Link_Gacetilla"):
-            msj += f" ({row['Link_Gacetilla']})"
-          msj += "\n"
-
-        msj += f"• *Estado:* {row.get('Estado', '')}\n\n"
-
-        if not link_doc_encontrado and row.get("Link_Doc_Copys"):
-          link_doc_encontrado = row["Link_Doc_Copys"]
-
-      if link_doc_encontrado:
-        msj += (
-            "📄 *Documento general con Copys de la semana:*"
-            f" {link_doc_encontrado}\n\n"
-        )
-
-      msj += "Quedo atenta a tus comentarios o sugerencias. ¡Muchas gracias!"
-
-      st.markdown("### Vista previa del mensaje:")
-      st.code(msj, language="markdown")
-      texto_encoded = urllib.parse.quote(msj)
-      ws_url = f"https://api.whatsapp.com/send?text={texto_encoded}"
-      st.markdown(
-          f'<a href="{ws_url}" target="_blank"><button style="background-color:'
-          " #25D366; color: white; padding: 10px 20px; border: none;"
-          ' border-radius: 5px; cursor: pointer; font-weight: bold;">Abrir y'
-          " enviar por WhatsApp</button></a>",
-          unsafe_allow_html=True,
-      )
     else:
       st.warning(
-          "No hay publicaciones programadas para el rango de fechas"
-          " seleccionado."
+          "No hay publicaciones programadas para el rango de fechas seleccionado."
       )
   else:
     st.info("No hay publicaciones registradas para generar el reporte.")
