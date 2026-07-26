@@ -292,11 +292,17 @@ with tab1:
 
             cont_txt = str(row.get("Contenido", "")).replace("nan", "").strip()
             tema_txt = str(row.get("Tema", "")).replace("nan", "").strip()
-            titulo_base = (
-                cont_txt if cont_txt else (tema_txt if tema_txt else "Sin título")
-            )
+            fmt_txt = str(row.get("Formato", "")).replace("nan", "").strip()
 
-            titulo = f"[{hora_raw[:5]}] [{row.get('Formato', '')}] {titulo_base}"
+            # Asegura que SIEMPRE exista un texto para el título del evento
+            if cont_txt:
+              titulo_base = cont_txt
+            elif tema_txt:
+              titulo_base = tema_txt
+            else:
+              titulo_base = "Sin descripción"
+
+            titulo = f"[{hora_raw[:5]}] [{fmt_txt if fmt_txt else 'Post'}] {titulo_base}"
             if str(row.get("Requiere_Gacetilla", "")).strip() in ["Sí", "Si"]:
               titulo = "📰 " + titulo
 
@@ -309,9 +315,9 @@ with tab1:
                     else "#3D82F6"
                 ),
                 "extendedProps": {
-                    "tema": str(row.get("Tema", "")),
-                    "formato": str(row.get("Formato", "")),
-                    "contenido": str(row.get("Contenido", "")),
+                    "tema": tema_txt,
+                    "formato": fmt_txt,
+                    "contenido": cont_txt,
                     "objetivo": str(row.get("Objetivo", "")),
                     "estado": str(row.get("Estado", "")),
                     "prioridad": str(row.get("Prioridad", "")),
