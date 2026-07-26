@@ -308,12 +308,27 @@ with tab1:
                     if str(row.get("Prioridad", "")) == "Alta"
                     else "#3D82F6"
                 ),
+                # Propiedades extendidas para mostrar abajo al hacer clic
+                "extendedProps": {
+                    "tema": str(row.get("Tema", "")),
+                    "formato": str(row.get("Formato", "")),
+                    "contenido": str(row.get("Contenido", "")),
+                    "objetivo": str(row.get("Objetivo", "")),
+                    "estado": str(row.get("Estado", "")),
+                    "prioridad": str(row.get("Prioridad", "")),
+                    "link_visual": str(row.get("Link_Visual", "")),
+                    "link_copys": str(row.get("Link_Doc_Copys", "")),
+                    "gacetilla": str(row.get("Requiere_Gacetilla", "")),
+                    "link_gacetilla": str(row.get("Link_Gacetilla", "")),
+                    "hora": hora_raw[:5],
+                    "fecha": fecha_clean,
+                }
             })
       except Exception:
         continue
 
   if events:
-    st.caption(f"✓ {len(events)} publicación(es) cargada(s) en el calendario.")
+    st.caption(f"✓ {len(events)} publicación(es) cargada(s). Hacé clic en cualquier evento para desplegar su detalle.")
   else:
     st.info(
         "No hay publicaciones visibles todavía. Cargar tu primer contenido"
@@ -329,14 +344,57 @@ with tab1:
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js'></script>
     <style>
-      body {{ font-family: sans-serif; margin: 0; padding: 5px; background-color: #ffffff; }}
+      body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 5px; background-color: #ffffff; color: #31333F; }}
       #calendar {{ max-width: 100%; margin: 0 auto; }}
-      .fc-event {{ cursor: pointer; padding: 2px 4px; font-size: 0.85em; border-radius: 3px; }}
+      .fc-event {{ cursor: pointer; padding: 2px 4px; font-size: 0.85em; border-radius: 4px; }}
+      
+      /* Tarjeta de detalle que se despliega abajo */
+      #detalle-container {{
+        display: none;
+        margin-top: 20px;
+        padding: 16px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      }}
+      #detalle-container h4 {{ margin-top: 0; color: #1f2937; margin-bottom: 12px; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; }}
+      .detalle-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 12px; }}
+      .detalle-item {{ background: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #edf2f7; }}
+      .detalle-item span {{ font-size: 0.75em; color: #6b7280; text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px; }}
+      .detalle-item p {{ margin: 0; font-size: 0.9em; font-weight: 500; color: #111827; word-break: break-word; }}
+      .badge {{ display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.8em; font-weight: bold; color: white; }}
+      a.btn-link {{ color: #2563eb; text-decoration: underline; font-weight: 500; }}
     </style>
   </head>
   <body>
     <div id='calendar'></div>
+    
+    <div id='detalle-container'>
+      <h4 id='det-titulo'>📋 Detalle del Contenido Seleccionado 
+        <button onclick="cerrarDetalle()" style="background:none; border:none; cursor:pointer; font-size:1.2em; color:#6b7280;">✕</button>
+      </h4>
+      <div class='detalle-grid'>
+        <div class='detalle-item'><span>Fecha y Hora</span><p id='det-fechahora'>-</p></div>
+        <div class='detalle-item'><span>Tema</span><p id='det-tema'>-</p></div>
+        <div class='detalle-item'><span>Formato</span><p id='det-formato'>-</p></div>
+        <div class='detalle-item'><span>Estado</span><p id='det-estado'>-</p></div>
+        <div class='detalle-item'><span>Objetivo</span><p id='det-objetivo'>-</p></div>
+        <div class='detalle-item'><span>Prioridad</span><p id='det-prioridad'>-</p></div>
+      </div>
+      <div class='detalle-item' style='margin-bottom: 12px;'><span>Contenido / Gancho</span><p id='det-contenido'>-</p></div>
+      <div class='detalle-grid'>
+        <div class='detalle-item'><span>Link al Contenido</span><p id='det-linkvisual'>-</p></div>
+        <div class='detalle-item'><span>Doc Copys Semanal</span><p id='det-linkcopys'>-</p></div>
+        <div class='detalle-item'><span>Gacetilla de Prensa</span><p id='det-gacetilla'>-</p></div>
+      </div>
+    </div>
+
     <script>
+      function cerrarDetalle() {{
+        document.getElementById('detalle-container').style.display = 'none';
+      }}
+
       document.addEventListener('DOMContentLoaded', function() {{
         var calendarEl = document.getElementById('calendar');
         var calendar = new FullCalendar.Calendar(calendarEl, {{
@@ -348,7 +406,32 @@ with tab1:
             center: 'title',
             right: 'dayGridMonth,timeGridWeek'
           }},
-          events: {events_json}
+          events: {events_json},
+          eventClick: function(info) {{
+            var props = info.event.extendedProps;
+            
+            document.getElementById('det-fechahora').innerText = props.fecha + ' a las ' + props.hora + ' hs';
+            document.getElementById('det-tema').innerText = props.tema || 'N/A';
+            document.getElementById('det-formato').innerText = props.formato || 'N/A';
+            document.getElementById('det-estado').innerText = props.estado || 'N/A';
+            document.getElementById('det-objetivo').innerText = props.objetivo || 'N/A';
+            document.getElementById('det-prioridad').innerText = props.prioridad || 'N/A';
+            document.getElementById('det-contenido').innerText = props.contenido || 'Sin descripción';
+            
+            // Render de Links
+            document.getElementById('det-linkvisual').innerHTML = props.link_visual ? '<a class="btn-link" href="' + props.link_visual + '" target="_blank">Abrir Recurso</a>' : 'Sin enlace';
+            document.getElementById('det-linkcopys').innerHTML = props.link_copys ? '<a class="btn-link" href="' + props.link_copys + '" target="_blank">Abrir Doc Copys</a>' : 'Sin enlace';
+            
+            var gacetillaTxt = props.gacetilla === 'Sí' || props.gacetilla === 'Si' ? 'Sí' : 'No';
+            if ((props.gacetilla === 'Sí' || props.gacetilla === 'Si') && props.link_gacetilla) {{
+              gacetillaTxt += ' - <a class="btn-link" href="' + props.link_gacetilla + '" target="_blank">Ver Borrador</a>';
+            }}
+            document.getElementById('det-gacetilla').innerHTML = gacetillaTxt;
+
+            var container = document.getElementById('detalle-container');
+            container.style.display = 'block';
+            container.scrollIntoView({{ behavior: 'smooth' }});
+          }}
         }});
         calendar.render();
       }});
@@ -356,7 +439,7 @@ with tab1:
   </body>
   </html>
   """
-  components.html(calendar_html, height=700, scrolling=True)
+  components.html(calendar_html, height=850, scrolling=True)
 
 with tab2:
   st.subheader("Listado Detallado de Publicaciones")
@@ -563,7 +646,7 @@ with tab4:
         msj += f"• *Contenido:* {row.get('Contenido', '')}\n"
 
         if row.get("Link_Visual") and str(row["Link_Visual"]).strip():
-          msj += f"• *Link al Contenido/Arte:* {row['Link_Visual']}\n"
+          msj += f"• *Link al contenido:* {row['Link_Visual']}\n"
 
         if row.get("Requiere_Gacetilla") in ["Sí", "Si"]:
           msj += "• *Gacetilla de prensa:* Sí"
